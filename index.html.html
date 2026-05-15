@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema Sostituzioni Docenti — Betti / de Vincenti</title>
+<title>Sistema Sostituzioni Docenti — Ettore Conti</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
@@ -121,15 +121,15 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 // ================================================================
 const CFG = {
   // Supabase → Settings → API → Project URL
-  SUPABASE_URL: 'https://XXXXXXXXXXXXXXXX.supabase.co',
+  SUPABASE_URL: 'https://yuqcidujofmdjmlvwgyr.supabase.co',
   // Supabase → Settings → API → anon/public key
-  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.XXXXXXXX',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
   // EmailJS → Account → General → Public Key
   EMAILJS_PUBLIC_KEY: 'LA_TUA_PUBLIC_KEY',
   // EmailJS → Email Services → Service ID
-  EMAILJS_SERVICE_ID: 'service_XXXXXXX',
+  EMAILJS_SERVICE_ID: 'service_dct18kt',
   // EmailJS → Email Templates → Template ID
-  EMAILJS_TEMPLATE_ID: 'template_XXXXXXX',
+  EMAILJS_TEMPLATE_ID: 'template_7iqfynn',
 };
 
 // ================================================================
@@ -384,7 +384,7 @@ function render(){
 // ================================================================
 function renderLogin(){
   const card=el('div',{class:'login-card'});
-  card.appendChild(el('div',{class:'login-logo'},[el('div',{class:'icon-wrap'},'🏫'),el('div',{class:'school-name'},'Gestione Sostituzioni'),el('div',{class:'subtitle'},'Istituto Scolastico — Betti / de Vincenti')]));
+  card.appendChild(el('div',{class:'login-logo'},[el('div',{class:'icon-wrap'},'🏫'),el('div',{class:'school-name'},'Gestione Sostituzioni'),el('div',{class:'subtitle'},'I.T.T. — Ettore Conti')]));
   const errDiv=el('div',{class:'err-msg hidden'});
   card.appendChild(errDiv);
   const inpE=el('input',{type:'email',placeholder:'email istituzionale',autocomplete:'username'});
@@ -395,7 +395,7 @@ function renderLogin(){
   inpE.addEventListener('keydown',e=>e.key==='Enter'&&login());
   inpP.addEventListener('keydown',e=>e.key==='Enter'&&login());
   card.appendChild(el('button',{class:'btn btn-primary btn-full',onclick:login},'Accedi'));
-  card.appendChild(el('div',{class:'info-box'},'☁️ Database cloud Supabase — accesso da qualsiasi postazione'));
+  card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione tramite mail istituzionale'));
   return el('div',{class:'login-wrap'},[card]);
 }
 
