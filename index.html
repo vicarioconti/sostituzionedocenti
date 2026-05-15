@@ -282,8 +282,6 @@ async function dbCreaUtente(u){
 
   return true;
 }
-  return true;
-}
 async function dbModificaUtente(id,updates){const {error}=await sb.from('utenti').update(updates).eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
 async function dbEliminaUtente(id){const {error}=await sb.from('utenti').delete().eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
 async function dbLogEmail(destinatario,oggetto,corpo,stato){await sb.from('email_log').insert({destinatario,oggetto,corpo,stato});}
