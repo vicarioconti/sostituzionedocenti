@@ -192,7 +192,8 @@ function parseCSV(text){
     const classe=rest[2]||'',aula=rest[3]||'',giorno=rest[4]||'',oInizio=rest[5]||'';
     const gi=normalizzaGiorno(giorno);
     const giornoCanon=gi>=0&&gi<6?GIORNI[gi]:giorno.trim();
-    rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns.length>0?docCogns:[rest[0]],doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio:oInizio.trim(),sede:getSede(classe)});
+    const oInizioNorm=oInizio.trim().replace(/[hH]/g,':');
+rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns.length>0?docCogns:[rest[0]],doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio:oInizioNorm,sede:getSede(classe)});
   }
   return rows;
 }
