@@ -123,6 +123,8 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 .logo-admin-upload:hover::after{background:rgba(0,0,0,0.45);opacity:1}
 .logo-admin-upload-title{font-size:0.62rem;color:rgba(255,255,255,0.5);margin-left:2px;white-space:nowrap}
 @media print{.topbar,.toast-wrap,.btn,.modal-bg{display:none!important}.main{padding:0}.card{box-shadow:none;border:1px solid #ccc;break-inside:avoid}}
+.cambio-pw-banner{background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:0.9rem 1.1rem;display:flex;align-items:center;gap:10px;margin-bottom:1rem;font-size:0.85rem;color:#795548}
+.cambio-pw-banner strong{color:#e65100}
 </style>
 </head>
 <body>
@@ -170,7 +172,8 @@ let STATE={
   emailErrorLog:[],
   toasts:[],modal:null,loading:false,
   _orarioTab:'visualizza',_orarioFiltro:'',_orarioFiltroOra:'',
-  _emailTab:'log'
+  _emailTab:'log',
+  _primoAccesso:false
 };
 
 // Logo caricato da GitHub
@@ -264,7 +267,7 @@ async function dbEliminaOrario(){const{error}=await sb.from('orario').delete().n
 async function dbCreaUtente(u){
   const{data,error}=await sb.auth.signUp({
     email:u.email,password:u.password,
-    options:{data:{username:u.username,nome:u.nome,cognome:u.cognome,ruolo:u.ruolo}}
+    options:{data:{username:u.username,nome:u.nome,cognome:u.cognome,ruolo:u.ruolo,must_change_password:u.password===DEFAULT_PASSWORD}}
   });
   if(error){addToast('❌ Errore Auth: '+error.message,true);return false;}
   const userId=data.user?.id;
@@ -367,15 +370,63 @@ async function doLogin(email,pass){
   STATE.loading=false;
   if(error){addToast('❌ '+error.message,true);render();return;}
   STATE.currentUser=data.user;
+  // Rileva primo accesso con password predefinita
+  if(pass===DEFAULT_PASSWORD||data.user?.user_metadata?.must_change_password===true){
+    STATE._primoAccesso=true;
+  }
   const{data:prof}=await sb.from('utenti').select('*').eq('id',data.user.id).single();
   STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
   await caricaTutto();
 }
 async function doLogout(){await sb.auth.signOut();STATE.currentUser=null;STATE.ruolo=null;Object.assign(STATE,{orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[]});render();}
+
+// ================================================================
+// CAMBIO PASSWORD
+// ================================================================
+const DEFAULT_PASSWORD='Password1';
+
+function isPrimoAccesso(user){
+  // Il flag viene impostato nel metadata al momento della creazione
+  return user?.user_metadata?.must_change_password===true || STATE._primoAccesso;
+}
+
+function apriModaleCambioPassword(obbligatorio){
+  const errDiv=el('div',{class:'err-msg hidden'});
+  const inpNuova=el('input',{type:'password',placeholder:'Nuova password (min. 8 caratteri)'});
+  const inpConf=el('input',{type:'password',placeholder:'Conferma nuova password'});
+  async function submit(){
+    const pw=inpNuova.value,conf=inpConf.value;
+    if(pw.length<8){errDiv.textContent='La password deve avere almeno 8 caratteri';errDiv.className='err-msg';return;}
+    if(pw===DEFAULT_PASSWORD){errDiv.textContent='Scegli una password diversa da quella predefinita';errDiv.className='err-msg';return;}
+    if(pw!==conf){errDiv.textContent='Le password non coincidono';errDiv.className='err-msg';return;}
+    const{error}=await sb.auth.updateUser({password:pw,data:{must_change_password:false}});
+    if(error){errDiv.textContent='Errore: '+error.message;errDiv.className='err-msg';return;}
+    // Aggiorna metadata locale
+    if(STATE.currentUser?.user_metadata)STATE.currentUser.user_metadata.must_change_password=false;
+    STATE._primoAccesso=false;
+    STATE.modal=null;
+    addToast('✅ Password aggiornata con successo');
+    render();
+  }
+  const actions=[{label:'Salva password',cls:'btn btn-primary',cb:submit}];
+  if(!obbligatorio)actions.unshift({label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}});
+  STATE.modal={
+    title:'🔒 Cambio Password',
+    body:el('div',{},[
+      obbligatorio?el('div',{class:'notif notif-info',style:{marginBottom:'1rem'}},'ℹ️ Stai usando la password predefinita. Impostane una personale prima di continuare.'):null,
+      errDiv,
+      el('div',{class:'form-group'},[el('label',{},'Nuova password'),inpNuova]),
+      el('div',{class:'form-group'},[el('label',{},'Conferma password'),inpConf]),
+    ].filter(Boolean)),
+    actions
+  };
+  render();
+}
 async function initAuth(){
   const{data}=await sb.auth.getSession();
   if(data?.session?.user){
     STATE.currentUser=data.session.user;
+    if(data.session.user?.user_metadata?.must_change_password===true)STATE._primoAccesso=true;
     const{data:prof}=await sb.from('utenti').select('*').eq('id',data.session.user.id).single();
     STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
     await caricaTutto();
@@ -500,6 +551,7 @@ function renderTopbar(){
     el('div',{class:'topbar-right'},[
       '👤 '+(prof?prof.cognome+' '+prof.nome:STATE.currentUser.email),
       el('span',{class:'badge-ruolo badge-'+(isAdmin?'admin':'docente')},isAdmin?'Admin':'Docente'),
+      el('button',{class:'btn btn-outline btn-sm',onclick:()=>apriModaleCambioPassword(false)},'🔒 Password'),
       el('button',{class:'btn btn-outline btn-sm',onclick:doLogout},'Esci')
     ])
   ]);
@@ -510,6 +562,11 @@ function renderTopbar(){
 // ================================================================
 function renderApp(){
   const isAdmin=STATE.ruolo==='admin';
+  // Primo accesso: forza cambio password (solo docenti, o chiunque con password predefinita)
+  if(STATE._primoAccesso && !STATE.modal){
+    // Apri modale in modo non-bloccante al prossimo tick
+    setTimeout(()=>apriModaleCambioPassword(true),0);
+  }
   return frag(
     renderTopbar(),el('div',{class:'toast-wrap'}),
     el('div',{class:'main'},[
@@ -845,6 +902,7 @@ function apriModaleUtente(utente){
   const inpUser=el('input',{type:'text',value:utente?utente.username||'':'',placeholder:'es. rossi'});
   if(isEdit)inpUser.disabled=true;
   const inpPass=el('input',{type:'password',placeholder:isEdit?'(lascia vuoto per non cambiare)':'minimo 6 caratteri'});
+  if(!isEdit)inpPass.value=DEFAULT_PASSWORD;
   const inpEmail=el('input',{type:'email',value:utente?utente.email:'',placeholder:'nome@ettoreconti.edu.it'});
   const selRuolo=el('select',{});
   [['docente','Docente'],['admin','Amministratore']].forEach(([v,l])=>{const o=el('option',{value:v},l);if(utente&&utente.ruolo===v)o.selected=true;selRuolo.appendChild(o);});
@@ -861,7 +919,7 @@ function apriModaleUtente(utente){
       if(ok){addToast('✅ Utente creato');STATE.modal=null;await caricaTutto();}
     }
   }
-  STATE.modal={title:(isEdit?'✏️ Modifica utente':'➕ Nuovo utente'),body:el('div',{},[errDiv,el('div',{class:'grid2'},[el('div',{class:'form-group'},[el('label',{},'Nome'),inpNome]),el('div',{class:'form-group'},[el('label',{},'Cognome'),inpCogn])]),el('div',{class:'form-group'},[el('label',{},'Username'),inpUser]),!isEdit?el('div',{class:'form-group'},[el('label',{},'Password'),inpPass]):null,el('div',{class:'form-group'},[el('label',{},'Email'),inpEmail]),el('div',{class:'form-group'},[el('label',{},'Ruolo'),selRuolo])]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:isEdit?'Salva':'Crea utente',cls:'btn btn-primary',cb:submit}]};
+  STATE.modal={title:(isEdit?'✏️ Modifica utente':'➕ Nuovo utente'),body:el('div',{},[errDiv,el('div',{class:'grid2'},[el('div',{class:'form-group'},[el('label',{},'Nome'),inpNome]),el('div',{class:'form-group'},[el('label',{},'Cognome'),inpCogn])]),el('div',{class:'form-group'},[el('label',{},'Username'),inpUser]),!isEdit?el('div',{class:'form-group'},[el('label',{},'Password'),inpPass,el('div',{style:{fontSize:'0.75rem',color:'#888',marginTop:'4px'}},'💡 Password predefinita: Password1 — il docente potrà cambiarla al primo accesso')]):null,el('div',{class:'form-group'},[el('label',{},'Email'),inpEmail]),el('div',{class:'form-group'},[el('label',{},'Ruolo'),selRuolo])]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:isEdit?'Salva':'Crea utente',cls:'btn btn-primary',cb:submit}]};
   render();
 }
 
