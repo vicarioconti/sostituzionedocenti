@@ -12,11 +12,18 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#111;m
 .hidden{display:none!important}
 .app{display:flex;flex-direction:column;min-height:100vh}
 .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a3a6e 0%,#1a56a0 60%,#2980b9 100%)}
-.login-card{background:#fff;border-radius:16px;padding:2.5rem 2.5rem 2rem;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
+.login-card{background:#fff;border-radius:20px;padding:2.5rem 2.5rem 2rem;width:380px;box-shadow:0 12px 40px rgba(0,0,0,0.2)}
 .login-logo{text-align:center;margin-bottom:1.5rem}
+/* Logo upload area */
+.logo-upload-wrap{position:relative;width:80px;height:80px;margin:0 auto 0.75rem;cursor:pointer}
+.logo-upload-wrap img{width:80px;height:80px;object-fit:contain;border-radius:10px;display:block}
+.logo-placeholder{width:80px;height:80px;background:#e8f0fb;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;border:2px dashed #b0c8f0;transition:all 0.15s}
+.logo-upload-wrap:hover .logo-placeholder{border-color:#1a56a0;background:#d0e4f8}
+.logo-upload-wrap:hover::after{content:'📷';position:absolute;inset:0;background:rgba(26,86,160,0.55);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fff}
+.logo-upload-wrap.has-logo:hover::after{border-radius:10px}
+.logo-hint{font-size:0.68rem;color:#aaa;margin-top:4px}
 .login-logo .school-name{font-size:1.1rem;font-weight:700;color:#1a56a0}
 .login-logo .subtitle{font-size:0.78rem;color:#888;margin-top:2px}
-.login-logo .icon-wrap{width:56px;height:56px;background:#e8f0fb;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 0.75rem;font-size:1.6rem}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;font-size:0.8rem;font-weight:600;color:#444;margin-bottom:0.3rem}
 .form-group input,.form-group select,.form-group textarea{width:100%;border:1px solid rgba(0,0,0,0.15);border-radius:8px;padding:0.55rem 0.75rem;font-size:0.92rem;background:#fafafa;transition:border 0.15s;font-family:inherit}
@@ -30,9 +37,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#111;m
 .btn-sm{padding:0.3rem 0.75rem;font-size:0.8rem}
 .btn-full{width:100%;justify-content:center;padding:0.7rem}
 .err-msg{background:#fdecea;color:#c0392b;border-radius:6px;padding:0.6rem 0.9rem;font-size:0.83rem;margin-bottom:0.75rem}
-.info-box{background:#e8f0fb;color:#1a3a6e;border-radius:8px;padding:0.75rem 1rem;font-size:0.8rem;margin-top:1rem;line-height:1.6}
+.info-box{background:#e8f0fb;color:#1a3a6e;border-radius:8px;padding:0.6rem 0.9rem;font-size:0.78rem;margin-top:0.75rem;line-height:1.6;text-align:center}
 .topbar{background:#1a3a6e;color:#fff;padding:0 1.5rem;height:56px;display:flex;align-items:center;gap:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.15);flex-wrap:wrap}
-.topbar .logo{font-weight:700;font-size:1rem;white-space:nowrap}
+.topbar .logo{font-weight:700;font-size:1rem;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.topbar .logo img{height:30px;width:30px;object-fit:contain;border-radius:4px}
 .topbar .logo span{color:#7ec8f0;font-size:0.75rem;display:block;font-weight:400}
 .topbar nav{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .nav-btn{background:transparent;border:none;color:rgba(255,255,255,0.75);padding:0.4rem 0.85rem;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:500;transition:all 0.15s;white-space:nowrap}
@@ -91,7 +99,6 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 .docente-chip{display:inline-flex;align-items:center;gap:4px;background:#f0f4fb;border:1px solid #d0daf0;border-radius:12px;padding:2px 8px;font-size:0.75rem;margin:1px}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* CUSTOM DROPDOWN */
 .dd-wrap{position:relative;width:100%;min-width:180px}
 .dd-trigger{width:100%;border:1px solid rgba(0,0,0,0.15);border-radius:7px;padding:0.4rem 2rem 0.4rem 0.6rem;font-size:0.82rem;background:#fff;font-family:inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;transition:border-color 0.15s;box-sizing:border-box}
 .dd-trigger:hover{border-color:#1a56a0}
@@ -117,28 +124,20 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 <div id="app"></div>
 <script>
 // ================================================================
-// ⚙️  CONFIGURAZIONE — modifica solo questi valori
+// ⚙️ CONFIGURAZIONE
 // ================================================================
 const CFG = {
-  // Supabase → Settings → API → Project URL
-  SUPABASE_URL: 'https://yuqcidujofmdjmlvwgyr.supabase.co',
-  // Supabase → Settings → API → anon/public key
-  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
-  // EmailJS → Account → General → Public Key
-  EMAILJS_PUBLIC_KEY: 'LA_TUA_PUBLIC_KEY',
-  // EmailJS → Email Services → Service ID
-  EMAILJS_SERVICE_ID: 'service_dct18kt',
-  // EmailJS → Email Templates → Template ID
-  EMAILJS_TEMPLATE_ID: 'template_7iqfynn',
+SUPABASE_URL: 'https://yuqcidujofmdjmlvwgyr.supabase.co',
+SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
+EMAILJS_PUBLIC_KEY: 'LA_TUA_PUBLIC_KEY',
+EMAILJS_SERVICE_ID: 'service_dct18kt',
+EMAILJS_TEMPLATE_ID: 'template_7iqfynn',
 };
-
-// ================================================================
-// INIT LIBRERIE
-// ================================================================
+ 
 const { createClient } = window.supabase;
 const sb = createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 emailjs.init(CFG.EMAILJS_PUBLIC_KEY);
-
+ 
 // ================================================================
 // COSTANTI
 // ================================================================
@@ -146,27 +145,30 @@ const CLASSI_BETTI=['1lcs','2lcs','3lcs','4lcs','5lcs','1lds','2lds','3lds','4ld
 const GIORNI=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
 const GIORNO_MAP={'lunedi':0,'lunedì':0,'lun':0,'mon':0,'monday':0,'martedi':1,'martedì':1,'mar':1,'tue':1,'tuesday':1,'mercoledi':2,'mercoledì':2,'mer':2,'wed':2,'wednesday':2,'giovedi':3,'giovedì':3,'gio':3,'thu':3,'thursday':3,'venerdi':4,'venerdì':4,'ven':4,'fri':4,'friday':4,'sabato':5,'sab':5,'sat':5,'saturday':5,'domenica':6,'dom':6,'sun':6,'sunday':6};
 const CSV_ESEMPIO=`# CSV Orario — formato: durata,mat_nome,doc_cogn,doc_nome,classe,aula,giorno,o.inizio,sede
-# Per più docenti stessa ora: separare con ; (punto e virgola)
-# Disposizione = docente disponibile per sostituzioni
+# Più docenti stessa ora: separare con ; | Disposizione = docente per sostituzioni
+# Formati ora accettati: 08:00 08h00 8h00 8.00 800 1345
 60,Matematica,Rossi,Marco,1A,Aula1,Lunedì,08:00,sede
-60,Italiano,Bianchi,Laura,1A,Aula1,Lunedì,09:00,sede
+60,Italiano,Bianchi,Laura,1A,Aula1,Lunedì,09h00,sede
 60,Inglese,Ferrari,Giulia,2B,Aula2,Lunedì,08:00,sede
 120,Matematica,Rossi,Marco,2B,Aula2,Lunedì,09:00,sede
 60,Disposizione,Neri,Anna,,,Lunedì,10:00,sede
-60,Fisica,Russo,Carlo,1lcs,Aula3,Martedì,08:00,Betti
+60,Fisica,Russo,Carlo,1lcs,Aula3,Martedì,08h00,Betti
 60,Disposizione,Neri,Anna,,,Martedì,10:00,sede`;
-
+ 
 // ================================================================
 // STATO
 // ================================================================
 let STATE={
-  currentUser:null, ruolo:null,
-  page:'sostituzioni', selDate:todayStr(),
-  orario:[], assenze:[], sostituzioni:[], utenti:[], emailLog:[],
-  toasts:[], modal:null, loading:false,
-  _orarioTab:'visualizza', _orarioFiltro:'', _orarioFiltroOra:''
+currentUser:null,ruolo:null,logoUrl:null,
+page:'sostituzioni',selDate:todayStr(),
+orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[],
+toasts:[],modal:null,loading:false,
+_orarioTab:'visualizza',_orarioFiltro:'',_orarioFiltroOra:''
 };
-
+ 
+// Logo persistito in localStorage (solo immagine piccola, nessun dato sensibile)
+try{const l=localStorage.getItem('scuola_logo');if(l)STATE.logoUrl=l;}catch(e){}
+ 
 // ================================================================
 // UTILS
 // ================================================================
@@ -177,707 +179,679 @@ function getDayName(ds){if(!ds)return'';const d=new Date(ds+'T12:00:00');const n
 function formatDate(ds){if(!ds)return'';return new Date(ds+'T12:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});}
 function todayStr(){return new Date().toISOString().split('T')[0];}
 function isDisposizioneMateria(n){return n?n.toLowerCase().replace(/\s+/g,'').includes('disposizione'):false;}
-
-function parseCSV(text){
-  const rows=[];
-  for(const line of text.trim().split('\n')){
-    if(!line.trim()||line.trim().startsWith('#'))continue;
-    const parts=[];let buf='',inQ=false;
-    for(const c of line){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){parts.push(buf.trim());buf='';}else buf+=c;}
-    parts.push(buf.trim());
-    if(parts.length<9)continue;
-    const [durata,mat_nome,...rest]=parts;
-    const docCogns=rest[0].split(';').map(s=>s.trim()).filter(Boolean);
-    const docNomi=rest[1].split(';').map(s=>s.trim()).filter(Boolean);
-    const classe=rest[2]||'',aula=rest[3]||'',giorno=rest[4]||'',oInizio=rest[5]||'';
-    const gi=normalizzaGiorno(giorno);
-    const giornoCanon=gi>=0&&gi<6?GIORNI[gi]:giorno.trim();
-    const oInizioNorm=oInizio.trim().replace(/[hH]/g,':');
-rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns.length>0?docCogns:[rest[0]],doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio:oInizioNorm,sede:getSede(classe)});
-  }
-  return rows;
+ 
+// ✅ Normalizza qualsiasi formato ora → HH:MM
+// Gestisce: 08h00 08H00 8h00 08:00 8:00 08.00 8,00 800 0800 1345
+function normalizzaOra(s){
+if(!s)return'';
+const t=s.trim();
+// già HH:MM o H:MM
+if(/^\d{1,2}:\d{2}$/.test(t)){const[h,m]=t.split(':');return h.padStart(2,'0')+':'+m;}
+// 08h00 / 8H30
+const mH=t.match(/^(\d{1,2})[hH](\d{2})$/);if(mH)return mH[1].padStart(2,'0')+':'+mH[2];
+// 8.00
+const mP=t.match(/^(\d{1,2})\.(\d{2})$/);if(mP)return mP[1].padStart(2,'0')+':'+mP[2];
+// 8,00
+const mC=t.match(/^(\d{1,2}),(\d{2})$/);if(mC)return mC[1].padStart(2,'0')+':'+mC[2];
+// 800 / 0800 / 1345
+const mN=t.match(/^(\d{3,4})$/);if(mN){const p=mN[1].padStart(4,'0');return p.slice(0,2)+':'+p.slice(2);}
+return t;
 }
-
+ 
+function parseCSV(text){
+const rows=[];
+for(const line of text.trim().split('\n')){
+if(!line.trim()||line.trim().startsWith('#'))continue;
+const parts=[];let buf='',inQ=false;
+for(const c of line){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){parts.push(buf.trim());buf='';}else buf+=c;}
+parts.push(buf.trim());
+if(parts.length<9)continue;
+const [durata,mat_nome,...rest]=parts;
+const docCogns=rest[0].split(';').map(s=>s.trim()).filter(Boolean);
+const docNomi=rest[1].split(';').map(s=>s.trim()).filter(Boolean);
+const classe=rest[2]||'',aula=rest[3]||'',giorno=rest[4]||'',oInizioRaw=rest[5]||'';
+const gi=normalizzaGiorno(giorno);
+const giornoCanon=gi>=0&&gi<6?GIORNI[gi]:giorno.trim();
+const oInizio=normalizzaOra(oInizioRaw); // ← converte 08h00→08:00, 0800→08:00, ecc.
+rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns.length>0?docCogns:[rest[0]],doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio,sede:getSede(classe)});
+}
+return rows;
+}
+ 
 // ================================================================
 // SUPABASE — LETTURA
 // ================================================================
 async function caricaTutto(){
-  const [ro,as,so,ut,em]=await Promise.all([
-    sb.from('orario').select('*').order('giorno').order('o_inizio'),
-    sb.from('assenze').select('*').order('data'),
-    sb.from('sostituzioni').select('*'),
-    sb.from('utenti').select('*').order('cognome'),
-    sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
-  ]);
-  if(ro.data)STATE.orario=ro.data.map(r=>({...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]')}));
-  if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo}));
-  if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
-  if(ut.data)STATE.utenti=ut.data;
-  if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
-  render();
+const [ro,as,so,ut,em]=await Promise.all([
+sb.from('orario').select('*').order('giorno').order('o_inizio'),
+sb.from('assenze').select('*').order('data'),
+sb.from('sostituzioni').select('*'),
+sb.from('utenti').select('*').order('cognome'),
+sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
+]);
+if(ro.data)STATE.orario=ro.data.map(r=>({...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio}));
+if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo}));
+if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
+if(ut.data)STATE.utenti=ut.data;
+if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
+render();
 }
-
+ 
 // ================================================================
 // SUPABASE — SCRITTURA
 // ================================================================
 async function dbInserisciAssenza(a){
-  const {data,error}=await sb.from('assenze').insert({doc_cogn:a.docCogn,doc_nome:a.docNome,tipo:a.tipo,ora:a.ora||null,data:a.date,inserito_da:STATE.currentUser.id}).select().single();
-  if(error){addToast('❌ Errore DB: '+error.message,true);return null;}
-  return data;
+const {data,error}=await sb.from('assenze').insert({doc_cogn:a.docCogn,doc_nome:a.docNome,tipo:a.tipo,ora:a.ora||null,data:a.date,inserito_da:STATE.currentUser.id}).select().single();
+if(error){addToast('❌ Errore DB: '+error.message,true);return null;}
+return data;
 }
-async function dbEliminaAssenza(id){const {error}=await sb.from('assenze').delete().eq('id',id);if(error)addToast('❌ Errore: '+error.message,true);return !error;}
-async function dbSalvaSostituzione(assenzaId,lessonKey,docCognSostituto,isDisposizione,docCognAssente){
-  const {error}=await sb.from('sostituzioni').upsert({assenza_id:assenzaId,lesson_key:lessonKey,sostituto_cogn:docCognSostituto,is_disposizione:isDisposizione,assegnata_da:STATE.currentUser.id},{onConflict:'assenza_id,lesson_key'});
-  if(error){addToast('❌ Errore: '+error.message,true);return false;}
-  return true;
+async function dbEliminaAssenza(id){const{error}=await sb.from('assenze').delete().eq('id',id);if(error)addToast('❌ Errore: '+error.message,true);return !error;}
+async function dbSalvaSostituzione(assenzaId,lessonKey,docCognSostituto,isDisposizione){
+const{error}=await sb.from('sostituzioni').upsert({assenza_id:assenzaId,lesson_key:lessonKey,sostituto_cogn:docCognSostituto,is_disposizione:isDisposizione,assegnata_da:STATE.currentUser.id},{onConflict:'assenza_id,lesson_key'});
+if(error){addToast('❌ Errore: '+error.message,true);return false;}
+return true;
 }
-async function dbRimuoviSostituzione(assenzaId,lessonKey){const {error}=await sb.from('sostituzioni').delete().eq('assenza_id',assenzaId).eq('lesson_key',lessonKey);return !error;}
+async function dbRimuoviSostituzione(assenzaId,lessonKey){const{error}=await sb.from('sostituzioni').delete().eq('assenza_id',assenzaId).eq('lesson_key',lessonKey);return !error;}
 async function dbSalvaOrario(rows){
-  await sb.from('orario').delete().neq('id',0);
-  const payload=rows.map(r=>({durata:r.durata,mat_nome:r.mat_nome,doc_cogn:JSON.stringify(r.doc_cogn),doc_nome:JSON.stringify(r.doc_nome),classe:r.classe,aula:r.aula,giorno:r.giorno,o_inizio:r.oInizio,sede:r.sede}));
-  const {error}=await sb.from('orario').insert(payload);
-  if(error){addToast('❌ Errore salvataggio orario: '+error.message,true);return false;}
-  return true;
+await sb.from('orario').delete().neq('id',0);
+const payload=rows.map(r=>({durata:r.durata,mat_nome:r.mat_nome,doc_cogn:JSON.stringify(r.doc_cogn),doc_nome:JSON.stringify(r.doc_nome),classe:r.classe,aula:r.aula,giorno:r.giorno,o_inizio:r.oInizio,sede:r.sede}));
+const{error}=await sb.from('orario').insert(payload);
+if(error){addToast('❌ Errore salvataggio orario: '+error.message,true);return false;}
+return true;
 }
-async function dbEliminaOrario(){const {error}=await sb.from('orario').delete().neq('id',0);return !error;}
-async function dbCreaUtente(u){
-  // 1. Crea l'utente in Supabase Auth (funziona con anon key)
-  const {data, error} = await sb.auth.signUp({
-    email: u.email,
-    password: u.password,
-    options: {
-      data: {
-        username: u.username,
-        nome: u.nome,
-        cognome: u.cognome,
-        ruolo: u.ruolo
-      }
-    }
-  });
-
-  if(error){
-    addToast('❌ Errore Auth: ' + error.message, true);
-    return false;
-  }
-
-  const userId = data.user?.id;
-  if(!userId){
-    addToast('❌ ID utente non ricevuto da Auth', true);
-    return false;
-  }
-
-  // 2. Inserisci il profilo nella tabella utenti con l'id di Auth
-  const {error: e2} = await sb.from('utenti').insert({
-    id: userId,
-    username: u.username,
-    nome: u.nome,
-    cognome: u.cognome,
-    email: u.email,
-    ruolo: u.ruolo
-  });
-
-  if(e2){
-    addToast('❌ Errore salvataggio profilo: ' + e2.message, true);
-    return false;
-  }
-
-  return true;
-}
-async function dbModificaUtente(id,updates){const {error}=await sb.from('utenti').update(updates).eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
-async function dbEliminaUtente(id){const {error}=await sb.from('utenti').delete().eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
-async function dbLogEmail(destinatario,oggetto,corpo,stato){await sb.from('email_log').insert({destinatario,oggetto,corpo,stato});}
-
+async function dbEliminaOrario(){const{error}=await sb.from('orario').delete().neq('id',0);return !error;}
+ 
 // ================================================================
-// EMAIL (EmailJS)
+// ✅ dbCreaUtente: usa signUp (anon key) + upsert profilo
+// ================================================================
+async function dbCreaUtente(u){
+const{data,error}=await sb.auth.signUp({
+email:u.email,password:u.password,
+options:{data:{username:u.username,nome:u.nome,cognome:u.cognome,ruolo:u.ruolo}}
+});
+if(error){addToast('❌ Errore Auth: '+error.message,true);return false;}
+const userId=data.user?.id;
+if(!userId){addToast('❌ ID utente non ricevuto da Supabase Auth',true);return false;}
+const{error:e2}=await sb.from('utenti').upsert({id:userId,username:u.username,nome:u.nome,cognome:u.cognome,email:u.email,ruolo:u.ruolo},{onConflict:'id'});
+if(e2){addToast('❌ Errore profilo: '+e2.message,true);return false;}
+return true;
+}
+async function dbModificaUtente(id,updates){const{error}=await sb.from('utenti').update(updates).eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
+async function dbEliminaUtente(id){const{error}=await sb.from('utenti').delete().eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
+async function dbLogEmail(dest,ogg,corp,stato){await sb.from('email_log').insert({destinatario:dest,oggetto:ogg,corpo:corp,stato});}
+ 
+// ================================================================
+// EMAIL
 // ================================================================
 async function inviaEmailAssenza(assenza){
-  const utente=STATE.utenti.find(u=>u.cognome===assenza.docCogn);
-  const email=utente?utente.email:`${assenza.docCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
-  const oggetto=`Conferma assenza ${formatDate(assenza.date)}`;
-  const corpo=assenza.tipo==='giorno'?'Assenza intera giornata':'Permesso orario — ora '+assenza.ora;
-  try{
-    await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la registrazione della Sua assenza:\n📅 Data: ${formatDate(assenza.date)}\n⏰ Tipo: ${corpo}\n\nCordiali saluti,\nSegreteria Scolastica`});
-    await dbLogEmail(email,oggetto,corpo,'inviata');
-    addToast('📧 Email inviata a '+email);
-  }catch(e){
-    console.warn('EmailJS:',e);
-    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));
-    addToast('⚠️ Email non inviata (controlla configurazione EmailJS)',true);
-  }
+const utente=STATE.utenti.find(u=>u.cognome===assenza.docCogn);
+const email=utente?utente.email:`${assenza.docCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
+const oggetto=`Conferma assenza ${formatDate(assenza.date)}`;
+const corpo=assenza.tipo==='giorno'?'Assenza intera giornata':'Permesso orario — ora '+assenza.ora;
+try{
+await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la Sua assenza:\n📅 ${formatDate(assenza.date)}\n⏰ ${corpo}\n\nCordiali saluti,\nSegreteria`});
+await dbLogEmail(email,oggetto,corpo,'inviata');addToast('📧 Email inviata a '+email);
+}catch(e){console.warn('EmailJS:',e);await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));addToast('⚠️ Email non inviata',true);}
 }
 async function inviaEmailSostituzione(assenza,lezione,sostitutoCogn){
-  const utente=STATE.utenti.find(u=>u.cognome===sostitutoCogn);
-  const email=utente?utente.email:`${sostitutoCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
-  const oggetto=`Sostituzione assegnata — ${formatDate(assenza.date)} ore ${lezione.oInizio}`;
-  const corpo=`Sostituzione:\n📅 ${formatDate(assenza.date)}\n⏰ Ora: ${lezione.oInizio}\n👤 Assente: Prof. ${assenza.docCogn}\n📚 Materia: ${lezione.mat_nome}\n🏫 Classe: ${lezione.classe}\n🚪 Aula: ${lezione.aula||'—'}\n📍 Sede: ${lezione.sede}`;
-  try{
-    await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria Scolastica`});
-    await dbLogEmail(email,oggetto,corpo,'inviata');
-  }catch(e){
-    console.warn('EmailJS:',e);
-    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));
-    addToast('⚠️ Email sostituzione non inviata',true);
-  }
+const utente=STATE.utenti.find(u=>u.cognome===sostitutoCogn);
+const email=utente?utente.email:`${sostitutoCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
+const oggetto=`Sostituzione assegnata — ${formatDate(assenza.date)} ore ${lezione.oInizio}`;
+const corpo=`📅 ${formatDate(assenza.date)} | ⏰ ${lezione.oInizio} | 👤 Assente: ${assenza.docCogn} | 📚 ${lezione.mat_nome} | 🏫 ${lezione.classe} | 🚪 ${lezione.aula||'—'} | 📍 ${lezione.sede}`;
+try{
+await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria`});
+await dbLogEmail(email,oggetto,corpo,'inviata');
+}catch(e){console.warn('EmailJS:',e);await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));addToast('⚠️ Email sostituzione non inviata',true);}
 }
-
+ 
 // ================================================================
 // AUTH
 // ================================================================
 async function doLogin(email,pass){
-  STATE.loading=true;render();
-  const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
-  STATE.loading=false;
-  if(error){addToast('❌ '+error.message,true);render();return;}
-  STATE.currentUser=data.user;
-  const {data:prof}=await sb.from('utenti').select('*').eq('id',data.user.id).single();
-  STATE.ruolo=prof?.ruolo||'docente';
-  STATE.currentUser.profilo=prof;
-  await caricaTutto();
+STATE.loading=true;render();
+const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+STATE.loading=false;
+if(error){addToast('❌ '+error.message,true);render();return;}
+STATE.currentUser=data.user;
+const{data:prof}=await sb.from('utenti').select('*').eq('id',data.user.id).single();
+STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
+await caricaTutto();
 }
 async function doLogout(){await sb.auth.signOut();STATE.currentUser=null;STATE.ruolo=null;Object.assign(STATE,{orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[]});render();}
 async function initAuth(){
-  const {data}=await sb.auth.getSession();
-  if(data?.session?.user){
-    STATE.currentUser=data.session.user;
-    const {data:prof}=await sb.from('utenti').select('*').eq('id',data.session.user.id).single();
-    STATE.ruolo=prof?.ruolo||'docente';
-    STATE.currentUser.profilo=prof;
-    await caricaTutto();
-  } else render();
+const{data}=await sb.auth.getSession();
+if(data?.session?.user){
+STATE.currentUser=data.session.user;
+const{data:prof}=await sb.from('utenti').select('*').eq('id',data.session.user.id).single();
+STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
+await caricaTutto();
+} else render();
 }
-
+ 
 // ================================================================
 // LOGICA BUSINESS
 // ================================================================
 function lezioniPerAssenza(assenza){
-  const giorno=getDayName(assenza.date);
-  return STATE.orario.filter(r=>{
-    if(!r.doc_cogn.includes(assenza.docCogn))return false;
-    if(assenza.tipo==='giorno')return stessoGiorno(r.giorno,giorno);
-    if(assenza.tipo==='ora')return stessoGiorno(r.giorno,giorno)&&r.oInizio===assenza.ora;
-    return false;
-  });
+const giorno=getDayName(assenza.date);
+return STATE.orario.filter(r=>{
+if(!r.doc_cogn.includes(assenza.docCogn))return false;
+if(assenza.tipo==='giorno')return stessoGiorno(r.giorno,giorno);
+if(assenza.tipo==='ora')return stessoGiorno(r.giorno,giorno)&&r.oInizio===assenza.ora;
+return false;
+});
 }
-
 function docentiDisponibili(lezione,selDate){
-  const giorno=getDayName(selDate);
-  const docInDisposizione=new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio).flatMap(r=>r.doc_cogn));
-  const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
-  const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
-  STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
-  lezione.doc_cogn.forEach(d=>docentiOccupati.add(d));
-  docentiOccupati.forEach(d=>docInDisposizione.delete(d));
-  const disposizioni=[...docInDisposizione];
-  const tutti=new Set([...docentiOccupati,...docInDisposizione]);
-  const filter=arr=>[...new Set(arr)].filter(c=>!tutti.has(c));
-  const stesseClassi=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe===lezione.classe&&!isDisposizioneMateria(r.mat_nome)&&!r.doc_cogn.every(d=>lezione.doc_cogn.includes(d))).flatMap(r=>r.doc_cogn));
-  const stessaMat=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.mat_nome===lezione.mat_nome&&r.oInizio!==lezione.oInizio&&!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn));
-  const tuttiDocenti=[...new Set(STATE.orario.filter(r=>!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn))];
-  const liberi=filter(tuttiDocenti);
-  return{disposizioni,stesseClassi,stessaMat,liberi};
+const giorno=getDayName(selDate);
+const docInDisposizione=new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio).flatMap(r=>r.doc_cogn));
+const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
+const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
+STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
+lezione.doc_cogn.forEach(d=>docentiOccupati.add(d));
+docentiOccupati.forEach(d=>docInDisposizione.delete(d));
+const disposizioni=[...docInDisposizione];
+const tutti=new Set([...docentiOccupati,...docInDisposizione]);
+const filter=arr=>[...new Set(arr)].filter(c=>!tutti.has(c));
+const stesseClassi=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe===lezione.classe&&!isDisposizioneMateria(r.mat_nome)&&!r.doc_cogn.every(d=>lezione.doc_cogn.includes(d))).flatMap(r=>r.doc_cogn));
+const stessaMat=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.mat_nome===lezione.mat_nome&&r.oInizio!==lezione.oInizio&&!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn));
+const tuttiDocenti=[...new Set(STATE.orario.filter(r=>!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn))];
+const liberi=filter(tuttiDocenti);
+return{disposizioni,stesseClassi,stessaMat,liberi};
 }
-
+ 
 // ================================================================
 // TOAST
 // ================================================================
 function addToast(msg,isErr){
-  const id=Date.now()+Math.random();
-  STATE.toasts=[...STATE.toasts,{id,msg,isErr}];
-  const wrap=document.querySelector('.toast-wrap');
-  if(wrap){const t=document.createElement('div');t.className='toast'+(isErr?' err':'');t.textContent=msg;wrap.appendChild(t);setTimeout(()=>t.remove(),4000);}
-  setTimeout(()=>{STATE.toasts=STATE.toasts.filter(t=>t.id!==id);},4000);
+const wrap=document.querySelector('.toast-wrap');
+if(!wrap)return;
+const t=document.createElement('div');
+t.className='toast'+(isErr?' err':'');
+t.textContent=msg;
+wrap.appendChild(t);
+setTimeout(()=>t.remove(),4000);
 }
-
+ 
 // ================================================================
 // RENDER ENGINE
 // ================================================================
 function el(tag,attrs,children){
-  const e=document.createElement(tag);
-  if(attrs)Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='class')e.className=v;
-    else if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
-    else if(k.startsWith('on'))e.addEventListener(k.slice(2).toLowerCase(),v);
-    else if(k==='html')e.innerHTML=v;
-    else e.setAttribute(k,v);
-  });
-  if(children)flatten(children).forEach(c=>{if(c==null||c===false)return;e.appendChild(typeof c==='string'?document.createTextNode(c):c);});
-  return e;
+const e=document.createElement(tag);
+if(attrs)Object.entries(attrs).forEach(([k,v])=>{
+if(k==='class')e.className=v;
+else if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
+else if(k.startsWith('on'))e.addEventListener(k.slice(2).toLowerCase(),v);
+else if(k==='html')e.innerHTML=v;
+else e.setAttribute(k,v);
+});
+if(children)flatten(children).forEach(c=>{if(c==null||c===false)return;e.appendChild(typeof c==='string'?document.createTextNode(c):c);});
+return e;
 }
 function flatten(a){return Array.isArray(a)?a.flatMap(flatten):[a];}
 function frag(...children){const f=document.createDocumentFragment();flatten(children).forEach(c=>{if(c!=null&&c!==false)f.appendChild(typeof c==='string'?document.createTextNode(c):c);});return f;}
-
+ 
 function render(){
-  const root=document.getElementById('app');
-  root.innerHTML='';
-  if(STATE.loading){root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:1rem;background:linear-gradient(135deg,#1a3a6e,#1a56a0)"><div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></div><div style="color:#fff;font-size:0.9rem">Caricamento...</div></div>';return;}
-  root.appendChild(STATE.currentUser?renderApp():renderLogin());
+const root=document.getElementById('app');root.innerHTML='';
+if(STATE.loading){root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:1rem;background:linear-gradient(135deg,#1a3a6e,#1a56a0)"><div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></div><div style="color:#fff;font-size:0.9rem">Caricamento...</div></div>';return;}
+root.appendChild(STATE.currentUser?renderApp():renderLogin());
 }
-
+ 
 // ================================================================
-// LOGIN
+// ✅ LOGIN con logo caricabile
 // ================================================================
 function renderLogin(){
-  const card=el('div',{class:'login-card'});
-  card.appendChild(el('div',{class:'login-logo'},[
-  el('div',{class:'icon-wrap'},
-    el('img',{src:'logo.png', alt:'Logo scuola', style:{width:'44px',height:'44px',objectFit:'contain',borderRadius:'6px'}})
-  ),
-  el('div',{class:'school-name'},'Gestione Sostituzioni'),
-  el('div',{class:'subtitle'},'I.T.T. — Ettore Conti')
-]));
-  const errDiv=el('div',{class:'err-msg hidden'});
-  card.appendChild(errDiv);
-  const inpE=el('input',{type:'email',placeholder:'email istituzionale',autocomplete:'username'});
-  const inpP=el('input',{type:'password',placeholder:'password',autocomplete:'current-password'});
-  card.appendChild(el('div',{class:'form-group'},[el('label',{},'Email'),inpE]));
-  card.appendChild(el('div',{class:'form-group'},[el('label',{},'Password'),inpP]));
-  function login(){const e=inpE.value.trim(),p=inpP.value;if(!e||!p){errDiv.textContent='Inserisci email e password';errDiv.className='err-msg';return;}doLogin(e,p);}
-  inpE.addEventListener('keydown',e=>e.key==='Enter'&&login());
-  inpP.addEventListener('keydown',e=>e.key==='Enter'&&login());
-  card.appendChild(el('button',{class:'btn btn-primary btn-full',onclick:login},'Accedi'));
-  card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione tramite mail istituzionale'));
-  return el('div',{class:'login-wrap'},[card]);
+const card=el('div',{class:'login-card'});
+ 
+// Input file nascosto per il logo
+const fileInp=el('input',{type:'file',accept:'image/*',class:'hidden'});
+fileInp.addEventListener('change',function(e){
+const f=e.target.files[0];if(!f)return;
+const reader=new FileReader();
+reader.onload=function(ev){
+try{localStorage.setItem('scuola_logo',ev.target.result);}catch(err){}
+STATE.logoUrl=ev.target.result;
+render();
+};
+reader.readAsDataURL(f);
+});
+ 
+// Area logo cliccabile
+const logoWrap=el('div',{class:'logo-upload-wrap'+(STATE.logoUrl?' has-logo':''),title:'Clicca per caricare il logo della scuola'});
+if(STATE.logoUrl){
+logoWrap.appendChild(el('img',{src:STATE.logoUrl,alt:'Logo scuola'}));
+} else {
+logoWrap.appendChild(el('div',{class:'logo-placeholder'},'🏫'));
 }
-
+logoWrap.addEventListener('click',()=>fileInp.click());
+ 
+card.appendChild(el('div',{class:'login-logo'},[
+logoWrap,fileInp,
+el('div',{class:'logo-hint'},STATE.logoUrl?'Clicca per cambiare logo':'Clicca per caricare il logo'),
+el('div',{class:'school-name'},'Gestione Sostituzioni'),
+el('div',{class:'subtitle'},'I.T.T. Ettore Conti — Betti / de Vincenti')
+]));
+ 
+const errDiv=el('div',{class:'err-msg hidden'});
+card.appendChild(errDiv);
+const inpE=el('input',{type:'email',placeholder:'email istituzionale',autocomplete:'username'});
+const inpP=el('input',{type:'password',placeholder:'password',autocomplete:'current-password'});
+card.appendChild(el('div',{class:'form-group'},[el('label',{},'Email'),inpE]));
+card.appendChild(el('div',{class:'form-group'},[el('label',{},'Password'),inpP]));
+function login(){const e=inpE.value.trim(),p=inpP.value;if(!e||!p){errDiv.textContent='Inserisci email e password';errDiv.className='err-msg';return;}doLogin(e,p);}
+inpE.addEventListener('keydown',e=>e.key==='Enter'&&login());
+inpP.addEventListener('keydown',e=>e.key==='Enter'&&login());
+card.appendChild(el('button',{class:'btn btn-primary btn-full',onclick:login},'Accedi'));
+card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione · Dati in cloud Supabase'));
+return el('div',{class:'login-wrap'},[card]);
+}
+ 
 // ================================================================
 // TOPBAR
 // ================================================================
 function renderTopbar(){
-  const isAdmin=STATE.ruolo==='admin';
-  const prof=STATE.currentUser.profilo;
-  const navItems=isAdmin?[['dashboard','📊 Dashboard'],['assenze','📋 Assenze'],['sostituzioni','🔄 Sostituzioni'],['orario','📅 Orario'],['utenti','👥 Utenti'],['email','📧 Email Log']]:[['sostituzioni','🔄 Sostituzioni']];
-  return el('div',{class:'topbar'},[
-    el('div',{class:'logo'},['🏫 Sostituzioni ',el('span',{},'Betti / de Vincenti')]),
-    el('nav',{},navItems.map(([pg,lbl])=>el('button',{class:'nav-btn'+(STATE.page===pg?' active':''),onclick:()=>{STATE.page=pg;render();}},lbl))),
-    el('div',{class:'topbar-right'},[
-      '👤 '+(prof?prof.cognome+' '+prof.nome:STATE.currentUser.email),
-      el('span',{class:'badge-ruolo badge-'+(isAdmin?'admin':'docente')},isAdmin?'Admin':'Docente'),
-      el('button',{class:'btn btn-outline btn-sm',onclick:doLogout},'Esci')
-    ])
-  ]);
+const isAdmin=STATE.ruolo==='admin';
+const prof=STATE.currentUser.profilo;
+const navItems=isAdmin?[['dashboard','📊 Dashboard'],['assenze','📋 Assenze'],['sostituzioni','🔄 Sostituzioni'],['orario','📅 Orario'],['utenti','👥 Utenti'],['email','📧 Email Log']]:[['sostituzioni','🔄 Sostituzioni']];
+const logoEl=STATE.logoUrl?el('img',{src:STATE.logoUrl,alt:'logo'}):'🏫 ';
+return el('div',{class:'topbar'},[
+el('div',{class:'logo'},[logoEl,'Sostituzioni ',el('span',{},'Betti / de Vincenti')]),
+el('nav',{},navItems.map(([pg,lbl])=>el('button',{class:'nav-btn'+(STATE.page===pg?' active':''),onclick:()=>{STATE.page=pg;render();}},lbl))),
+el('div',{class:'topbar-right'},[
+'👤 '+(prof?prof.cognome+' '+prof.nome:STATE.currentUser.email),
+el('span',{class:'badge-ruolo badge-'+(isAdmin?'admin':'docente')},isAdmin?'Admin':'Docente'),
+el('button',{class:'btn btn-outline btn-sm',onclick:doLogout},'Esci')
+])
+]);
 }
-
+ 
 // ================================================================
 // APP
 // ================================================================
 function renderApp(){
-  const isAdmin=STATE.ruolo==='admin';
-  const toastWrap=el('div',{class:'toast-wrap'});
-  return frag(
-    renderTopbar(),toastWrap,
-    el('div',{class:'main'},[
-      STATE.page==='dashboard'&&isAdmin?renderDashboard():null,
-      STATE.page==='assenze'&&isAdmin?renderAssenze():null,
-      STATE.page==='sostituzioni'?renderSostituzioni():null,
-      STATE.page==='orario'&&isAdmin?renderOrario():null,
-      STATE.page==='utenti'&&isAdmin?renderUtenti():null,
-      STATE.page==='email'&&isAdmin?renderEmail():null,
-      STATE.modal?renderModal():null
-    ])
-  );
+const isAdmin=STATE.ruolo==='admin';
+return frag(
+renderTopbar(),el('div',{class:'toast-wrap'}),
+el('div',{class:'main'},[
+STATE.page==='dashboard'&&isAdmin?renderDashboard():null,
+STATE.page==='assenze'&&isAdmin?renderAssenze():null,
+STATE.page==='sostituzioni'?renderSostituzioni():null,
+STATE.page==='orario'&&isAdmin?renderOrario():null,
+STATE.page==='utenti'&&isAdmin?renderUtenti():null,
+STATE.page==='email'&&isAdmin?renderEmail():null,
+STATE.modal?renderModal():null
+])
+);
 }
-
+ 
 // ================================================================
 // DATE NAV
 // ================================================================
 function renderDateNav(){
-  function changeDate(n){const d=new Date(STATE.selDate+'T12:00:00');d.setDate(d.getDate()+n);STATE.selDate=d.toISOString().split('T')[0];render();}
-  const inp=el('input',{type:'date',value:STATE.selDate,style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.82rem',fontFamily:'inherit'}});
-  inp.addEventListener('change',e=>{STATE.selDate=e.target.value;render();});
-  return el('div',{class:'date-nav'},[
-    el('button',{class:'arrow-btn',onclick:()=>changeDate(-1)},'◀'),
-    el('span',{class:'cur-date'},formatDate(STATE.selDate)),
-    el('button',{class:'arrow-btn',onclick:()=>changeDate(1)},'▶'),
-    el('button',{class:'btn btn-outline btn-sm',onclick:()=>{STATE.selDate=todayStr();render();}},'Oggi'),
-    inp
-  ]);
+function changeDate(n){const d=new Date(STATE.selDate+'T12:00:00');d.setDate(d.getDate()+n);STATE.selDate=d.toISOString().split('T')[0];render();}
+const inp=el('input',{type:'date',value:STATE.selDate,style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.82rem',fontFamily:'inherit'}});
+inp.addEventListener('change',e=>{STATE.selDate=e.target.value;render();});
+return el('div',{class:'date-nav'},[
+el('button',{class:'arrow-btn',onclick:()=>changeDate(-1)},'◀'),
+el('span',{class:'cur-date'},formatDate(STATE.selDate)),
+el('button',{class:'arrow-btn',onclick:()=>changeDate(1)},'▶'),
+el('button',{class:'btn btn-outline btn-sm',onclick:()=>{STATE.selDate=todayStr();render();}},'Oggi'),
+inp
+]);
 }
-
+ 
 // ================================================================
 // DASHBOARD
 // ================================================================
 function renderDashboard(){
-  const oggiStr=todayStr();
-  const assenzeOggi=STATE.assenze.filter(a=>a.date===oggiStr).length;
-  const stats=el('div',{class:'grid3'},[
-    statCard(STATE.orario.length,'Righe orario'),statCard(assenzeOggi,'Assenze oggi'),
-    statCard(STATE.assenze.length,'Assenze totali'),statCard(STATE.sostituzioni.length,'Sostituzioni assegnate')
-  ]);
-  const prossime=STATE.assenze.filter(a=>a.date>=oggiStr).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
-  return frag(
-    el('div',{class:'page-title'},'📊 Dashboard'),stats,
-    el('div',{class:'grid2'},[
-      el('div',{class:'card'},[
-        el('div',{class:'card-title'},'📅 Prossime assenze'),
-        prossime.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna assenza inserita'):el('div',{},prossime.map(a=>assenzaRow(a,false))),
-        el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'0.75rem'},onclick:()=>{STATE.page='assenze';render();}},'Gestisci assenze →')
-      ]),
-      el('div',{class:'card'},[
-        el('div',{class:'card-title'},'🏫 Sedi'),
-        el('div',{style:{marginBottom:'0.75rem'}},[el('div',{style:{fontWeight:600,marginBottom:'4px'}},'📍 Sede Betti'),el('div',{style:{fontSize:'0.78rem',color:'#666'}},'Classi: 1-5 LCS, 1-5 LDS, 1-5 LE')]),
-        el('div',{},[el('div',{style:{fontWeight:600,marginBottom:'4px'}},'📍 Sede de Vincenti'),el('div',{style:{fontSize:'0.78rem',color:'#666'}},'Tutte le altre classi')]),
-        el('div',{class:'notif notif-info',style:{marginTop:'1rem',marginBottom:0}},'💡 Sede determinata automaticamente dalla classe')
-      ])
-    ])
-  );
+const oggiStr=todayStr();
+const assenzeOggi=STATE.assenze.filter(a=>a.date===oggiStr).length;
+const stats=el('div',{class:'grid3'},[statCard(STATE.orario.length,'Righe orario'),statCard(assenzeOggi,'Assenze oggi'),statCard(STATE.assenze.length,'Assenze totali'),statCard(STATE.sostituzioni.length,'Sostituzioni assegnate')]);
+const prossime=STATE.assenze.filter(a=>a.date>=oggiStr).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+return frag(el('div',{class:'page-title'},'📊 Dashboard'),stats,el('div',{class:'grid2'},[
+el('div',{class:'card'},[el('div',{class:'card-title'},'📅 Prossime assenze'),prossime.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna assenza inserita'):el('div',{},prossime.map(a=>assenzaRow(a,false))),el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'0.75rem'},onclick:()=>{STATE.page='assenze';render();}},'Gestisci assenze →')]),
+el('div',{class:'card'},[el('div',{class:'card-title'},'🏫 Sedi'),el('div',{style:{marginBottom:'0.75rem'}},[el('div',{style:{fontWeight:600,marginBottom:'4px'}},'📍 Sede Betti'),el('div',{style:{fontSize:'0.78rem',color:'#666'}},'Classi: 1-5 LCS, 1-5 LDS, 1-5 LE')]),el('div',{},[el('div',{style:{fontWeight:600,marginBottom:'4px'}},'📍 Sede de Vincenti'),el('div',{style:{fontSize:'0.78rem',color:'#666'}},'Tutte le altre classi')]),el('div',{class:'notif notif-info',style:{marginTop:'1rem',marginBottom:0}},'💡 Sede determinata automaticamente dalla classe')])
+]));
 }
 function statCard(val,lbl){return el('div',{class:'stat-card'},[el('div',{class:'stat-val'},String(val)),el('div',{class:'stat-lbl'},lbl)]);}
-
+ 
 // ================================================================
 // ASSENZE
 // ================================================================
 function assenzaRow(a,showDelete){
-  const tipo=a.tipo==='giorno';
-  const row=el('div',{class:'assenza-row'},[
-    el('div',{style:{width:'36px',height:'36px',borderRadius:'50%',background:'#f0f4fb',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}},'👤'),
-    el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')),el('div',{class:'assenza-det'},formatDate(a.date)+' — '+(tipo?'Tutto il giorno':'Permesso ora '+a.ora))]),
-    el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso')
-  ]);
-  if(showDelete){
-    const btn=el('button',{class:'btn btn-danger btn-sm'},'🗑 Elimina');
-    btn.addEventListener('click',async()=>{
-      if(!confirm('Eliminare questa assenza?'))return;
-      const ok=await dbEliminaAssenza(a.id);
-      if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}
-    });
-    row.appendChild(btn);
-  }
-  return row;
+const tipo=a.tipo==='giorno';
+const row=el('div',{class:'assenza-row'},[
+el('div',{style:{width:'36px',height:'36px',borderRadius:'50%',background:'#f0f4fb',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}},'👤'),
+el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')),el('div',{class:'assenza-det'},formatDate(a.date)+' — '+(tipo?'Tutto il giorno':'Permesso ora '+a.ora))]),
+el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso')
+]);
+if(showDelete){
+const btn=el('button',{class:'btn btn-danger btn-sm'},'🗑 Elimina');
+btn.addEventListener('click',async()=>{if(!confirm('Eliminare questa assenza?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}});
+row.appendChild(btn);
 }
-
+return row;
+}
+ 
 function renderAssenze(){
-  const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate).sort((a,b)=>a.docCogn.localeCompare(b.docCogn));
-  const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
-  const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
-  const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
-
-  const tutteRows=STATE.assenze.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const tbody=el('tbody',{});
-  tutteRows.forEach(a=>{
-    const tipo=a.tipo==='giorno';
-    const delBtn=el('button',{class:'btn btn-danger btn-sm'},'🗑');
-    delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}});
-    tbody.appendChild(el('tr',{},[el('td',{},formatDate(a.date)),el('td',{},[el('strong',{},'Prof. '+a.docCogn),(a.docNome?' '+a.docNome:'')]),el('td',{},[el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso orario')]),el('td',{},tipo?'—':a.ora),el('td',{},[delBtn])]));
-  });
-  if(tutteRows.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna assenza inserita')]));
-
-  return frag(
-    el('div',{class:'page-title'},'📋 Gestione Assenze'),renderDateNav(),
-    el('div',{class:'card'},[
-      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[
-        el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),
-        el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Nuova assenza')
-      ]),
-      assenzeGiorno.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza registrata per questo giorno'):el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))
-    ]),
-    el('div',{class:'card'},[
-      el('div',{class:'card-title'},'📅 Tutte le assenze (anno scolastico)'),
-      el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Data'),el('th',{},'Docente'),el('th',{},'Tipo'),el('th',{},'Ora'),el('th',{},'Azione')])]),tbody])])
-    ])
-  );
+const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate).sort((a,b)=>a.docCogn.localeCompare(b.docCogn));
+const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
+const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
+const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
+const tutteRows=STATE.assenze.slice().sort((a,b)=>a.date.localeCompare(b.date));
+const tbody=el('tbody',{});
+if(tutteRows.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna assenza inserita')]));
+tutteRows.forEach(a=>{
+const tipo=a.tipo==='giorno';
+const delBtn=el('button',{class:'btn btn-danger btn-sm'},'🗑');
+delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}});
+tbody.appendChild(el('tr',{},[el('td',{},formatDate(a.date)),el('td',{},[el('strong',{},'Prof. '+a.docCogn),(a.docNome?' '+a.docNome:'')]),el('td',{},[el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso orario')]),el('td',{},tipo?'—':a.ora),el('td',{},[delBtn])]));
+});
+return frag(
+el('div',{class:'page-title'},'📋 Gestione Assenze'),renderDateNav(),
+el('div',{class:'card'},[el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Nuova assenza')]),assenzeGiorno.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza registrata per questo giorno'):el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))]),
+el('div',{class:'card'},[el('div',{class:'card-title'},'📅 Tutte le assenze (anno scolastico)'),el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Data'),el('th',{},'Docente'),el('th',{},'Tipo'),el('th',{},'Ora'),el('th',{},'Azione')])]),tbody])])])
+);
 }
-
+ 
 function apriFinestraAssenza(){
-  const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
-  const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
-  const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
-  let tipo='giorno',selectedDoc='',selectedOra='',selectedDate=STATE.selDate;
-  const errDiv=el('div',{class:'err-msg hidden'});
-  const selDocente=el('select',{});
-  selDocente.appendChild(el('option',{value:''},'— Seleziona docente —'));
-  tuttiDocenti.forEach(d=>{selDocente.appendChild(el('option',{value:d},d));});
-  selDocente.addEventListener('change',e=>{selectedDoc=e.target.value;});
-  const selData=el('input',{type:'date',value:selectedDate});
-  selData.addEventListener('change',e=>{selectedDate=e.target.value;aggiornareOre();});
-  const selTipo=el('select',{});
-  [['giorno','Tutto il giorno'],['ora','Permesso orario']].forEach(([v,l])=>selTipo.appendChild(el('option',{value:v},l)));
-  const wrapOra=el('div',{class:'form-group',style:{display:'none'}});
-  const selOra=el('select',{});
-  selOra.addEventListener('change',e=>{selectedOra=e.target.value;});
-  function aggiornareOre(){
-    selOra.innerHTML='';
-    const giorno=getDayName(selectedDate);
-    const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)).map(r=>r.oInizio))].sort();
-    (ore.length>0?ore:['08:00','09:00','10:00','11:00','12:00','13:00']).forEach(o=>selOra.appendChild(el('option',{value:o},o)));
-    selectedOra=selOra.value;
-  }
-  aggiornareOre();
-  selTipo.addEventListener('change',e=>{tipo=e.target.value;wrapOra.style.display=tipo==='ora'?'block':'none';});
-  wrapOra.appendChild(el('label',{},'Ora interessata'));wrapOra.appendChild(selOra);
-  async function submit(){
-    if(!selectedDoc){errDiv.textContent='Seleziona un docente';errDiv.className='err-msg';return;}
-    if(tipo==='ora'&&!selectedOra){errDiv.textContent='Seleziona l\'ora';errDiv.className='err-msg';return;}
-    const utente=STATE.utenti.find(u=>u.cognome===selectedDoc);
-    const nuova={docCogn:selectedDoc,docNome:utente?utente.nome:'',tipo,ora:tipo==='ora'?selectedOra:'',date:selectedDate};
-    const saved=await dbInserisciAssenza(nuova);
-    if(saved){
-      nuova.id=saved.id;
-      await inviaEmailAssenza(nuova);
-      STATE.selDate=selectedDate;
-      STATE.modal=null;
-      await caricaTutto();
-    }
-  }
-  STATE.modal={title:'➕ Inserisci Nuova Assenza',body:el('div',{},[errDiv,el('div',{class:'form-group'},[el('label',{},'Data'),selData]),el('div',{class:'form-group'},[el('label',{},'Docente assente'),selDocente]),el('div',{class:'form-group'},[el('label',{},'Tipo assenza'),selTipo]),wrapOra]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:'Salva assenza',cls:'btn btn-primary',cb:submit}]};
-  render();
+const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
+const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
+const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
+let tipo='giorno',selectedDoc='',selectedOra='',selectedDate=STATE.selDate;
+const errDiv=el('div',{class:'err-msg hidden'});
+const selDocente=el('select',{});
+selDocente.appendChild(el('option',{value:''},'— Seleziona docente —'));
+tuttiDocenti.forEach(d=>{selDocente.appendChild(el('option',{value:d},d));});
+selDocente.addEventListener('change',e=>{selectedDoc=e.target.value;});
+const selData=el('input',{type:'date',value:selectedDate});
+selData.addEventListener('change',e=>{selectedDate=e.target.value;aggiornareOre();});
+const selTipo=el('select',{});
+[['giorno','Tutto il giorno'],['ora','Permesso orario']].forEach(([v,l])=>selTipo.appendChild(el('option',{value:v},l)));
+const wrapOra=el('div',{class:'form-group',style:{display:'none'}});
+const selOra=el('select',{});
+selOra.addEventListener('change',e=>{selectedOra=e.target.value;});
+function aggiornareOre(){
+selOra.innerHTML='';
+const giorno=getDayName(selectedDate);
+const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)).map(r=>r.oInizio))].sort();
+(ore.length>0?ore:['08:00','09:00','10:00','11:00','12:00','13:00']).forEach(o=>selOra.appendChild(el('option',{value:o},o)));
+selectedOra=selOra.value;
 }
-
+aggiornareOre();
+selTipo.addEventListener('change',e=>{tipo=e.target.value;wrapOra.style.display=tipo==='ora'?'block':'none';});
+wrapOra.appendChild(el('label',{},'Ora interessata'));wrapOra.appendChild(selOra);
+async function submit(){
+if(!selectedDoc){errDiv.textContent='Seleziona un docente';errDiv.className='err-msg';return;}
+if(tipo==='ora'&&!selectedOra){errDiv.textContent='Seleziona l\'ora';errDiv.className='err-msg';return;}
+const utente=STATE.utenti.find(u=>u.cognome===selectedDoc);
+const nuova={docCogn:selectedDoc,docNome:utente?utente.nome:'',tipo,ora:tipo==='ora'?selectedOra:'',date:selectedDate};
+const saved=await dbInserisciAssenza(nuova);
+if(saved){nuova.id=saved.id;await inviaEmailAssenza(nuova);STATE.selDate=selectedDate;STATE.modal=null;await caricaTutto();}
+}
+STATE.modal={title:'➕ Inserisci Nuova Assenza',body:el('div',{},[errDiv,el('div',{class:'form-group'},[el('label',{},'Data'),selData]),el('div',{class:'form-group'},[el('label',{},'Docente assente'),selDocente]),el('div',{class:'form-group'},[el('label',{},'Tipo assenza'),selTipo]),wrapOra]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:'Salva assenza',cls:'btn btn-primary',cb:submit}]};
+render();
+}
+ 
 // ================================================================
 // SOSTITUZIONI
 // ================================================================
 function renderSostituzioni(){
-  const isAdmin=STATE.ruolo==='admin';
-  const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate);
-  const giornoCalc=getDayName(STATE.selDate);
-  const giorniNelOrario=[...new Set(STATE.orario.map(r=>r.giorno))];
-  const lezioniGiorno=STATE.orario.filter(r=>stessoGiorno(r.giorno,giornoCalc)).length;
-  const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
-    '🗓 Giorno: ',el('strong',{},giornoCalc),' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno))
-  ]):null;
-  const cards=assenzeGiorno.length===0?[el('div',{class:'card'},[el('p',{style:{color:'#999',fontSize:'0.9rem'}},'✅ Nessuna assenza registrata per '+formatDate(STATE.selDate))])]:assenzeGiorno.map(a=>renderCardAssenza(a,isAdmin));
-  let mySubst=null;
-  if(!isAdmin){
-    const mie=STATE.sostituzioni.filter(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId&&x.date===STATE.selDate);return a&&s.docCognSostituto===STATE.currentUser.profilo?.cognome;});
-    const righe=mie.map(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId);if(!a)return null;const lezioni=lezioniPerAssenza(a);const idx=parseInt((s.lessonKey||'').split('_')[1])||0;const l=lezioni[idx];if(!l)return null;return el('div',{class:'assenza-row'},[el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},l.oInizio+' — '+l.mat_nome+' in '+l.classe+(l.aula?' ('+l.aula+')':'')),el('div',{class:'assenza-det'},'Sostituisci Prof. '+a.docCogn+' — ',el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede))]),el('span',{class:'pill pill-green'},'✓ Confermata')]);}).filter(Boolean);
-    mySubst=el('div',{class:'card'},[el('div',{class:'card-title'},'📌 Le mie sostituzioni'),righe.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna sostituzione assegnata a te'):frag(...righe)]);
-  }
-  const f=frag(el('div',{class:'page-title'},'🔄 Sostituzioni — '+formatDate(STATE.selDate)));
-  if(isAdmin)f.appendChild(renderDateNav());
-  if(debugBar)f.appendChild(debugBar);
-  if(!isAdmin)f.appendChild(el('div',{class:'section-note'},'ℹ️ Visualizzazione sola lettura.'));
-  cards.forEach(c=>f.appendChild(c));
-  if(mySubst)f.appendChild(mySubst);
-  return f;
+const isAdmin=STATE.ruolo==='admin';
+const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate);
+const giornoCalc=getDayName(STATE.selDate);
+const giorniNelOrario=[...new Set(STATE.orario.map(r=>r.giorno))];
+const lezioniGiorno=STATE.orario.filter(r=>stessoGiorno(r.giorno,giornoCalc)).length;
+const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
+'🗓 Giorno: ',el('strong',{},giornoCalc),' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno))
+]):null;
+const cards=assenzeGiorno.length===0?[el('div',{class:'card'},[el('p',{style:{color:'#999',fontSize:'0.9rem'}},'✅ Nessuna assenza registrata per '+formatDate(STATE.selDate))])]:assenzeGiorno.map(a=>renderCardAssenza(a,isAdmin));
+let mySubst=null;
+if(!isAdmin){
+const mie=STATE.sostituzioni.filter(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId&&x.date===STATE.selDate);return a&&s.docCognSostituto===STATE.currentUser.profilo?.cognome;});
+const righe=mie.map(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId);if(!a)return null;const lezioni=lezioniPerAssenza(a);const idx=parseInt((s.lessonKey||'').split('_')[1])||0;const l=lezioni[idx];if(!l)return null;return el('div',{class:'assenza-row'},[el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},l.oInizio+' — '+l.mat_nome+' in '+l.classe+(l.aula?' ('+l.aula+')':'')),el('div',{class:'assenza-det'},'Sostituisci Prof. '+a.docCogn+' — ',el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede))]),el('span',{class:'pill pill-green'},'✓ Confermata')]);}).filter(Boolean);
+mySubst=el('div',{class:'card'},[el('div',{class:'card-title'},'📌 Le mie sostituzioni'),righe.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna sostituzione assegnata a te'):frag(...righe)]);
 }
-
+const f=frag(el('div',{class:'page-title'},'🔄 Sostituzioni — '+formatDate(STATE.selDate)));
+if(isAdmin)f.appendChild(renderDateNav());
+if(debugBar)f.appendChild(debugBar);
+if(!isAdmin)f.appendChild(el('div',{class:'section-note'},'ℹ️ Visualizzazione sola lettura.'));
+cards.forEach(c=>f.appendChild(c));
+if(mySubst)f.appendChild(mySubst);
+return f;
+}
+ 
 function renderCardAssenza(a,isAdmin){
-  const lezioni=lezioniPerAssenza(a);
-  const tipo=a.tipo==='giorno';
-  const thead=el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente/i'),el('th',{},'Classe'),el('th',{},'Aula'),el('th',{},'Sede'),el('th',{style:{minWidth:'200px'}},'Sostituto assegnato')])]);
-  const tbody=el('tbody',{});
-  if(lezioni.length===0){tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#aaa',fontSize:'0.83rem',padding:'0.75rem'}},'Nessuna lezione trovata nell\'orario per questo giorno')]));}
-  else{
-    lezioni.forEach((l,i)=>{
-      const key=a.id+'_'+i;
-      const sost=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key);
-      const isDispRow=sost&&sost.isDisposizione;
-      const tr=el('tr',{style:isDispRow?{background:'#f0fdf4'}:{}},[
-        el('td',{},[el('strong',{},l.oInizio)]),el('td',{},l.durata+'min'),
-        el('td',{},isDisposizioneMateria(l.mat_nome)?el('span',{class:'pill pill-purple'},'Disposizione'):l.mat_nome),
-        el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]),
-        el('td',{},l.classe||'—'),el('td',{},l.aula||'—'),
-        el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]),
-        el('td',{},isAdmin?renderSelectSostituto(a,l,i,key,sost):(sost?frag(el('strong',{},sost.docCognSostituto),' ',sost.isDisposizione?el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione'):el('span',{class:'pill pill-green'},'✓ Assegnato')):el('span',{class:'pill pill-gray'},'Non assegnato')))
-      ]);
-      tbody.appendChild(tr);
-    });
-  }
-  return el('div',{class:'card'},[el('div',{class:'card-title'},['👤 Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')+' ',el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Assente tutto il giorno':'Permesso ora '+a.ora)]),el('div',{class:'tbl-wrap'},[el('table',{},[thead,tbody])])]);
+const lezioni=lezioniPerAssenza(a);
+const tipo=a.tipo==='giorno';
+const thead=el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente/i'),el('th',{},'Classe'),el('th',{},'Aula'),el('th',{},'Sede'),el('th',{style:{minWidth:'210px'}},'Sostituto assegnato')])]);
+const tbody=el('tbody',{});
+if(lezioni.length===0){tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#aaa',fontSize:'0.83rem',padding:'0.75rem'}},'Nessuna lezione trovata nell\'orario per questo giorno')]));}
+else{
+lezioni.forEach((l,i)=>{
+const key=a.id+'_'+i;
+const sost=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key);
+const isDispRow=sost&&sost.isDisposizione;
+const tr=el('tr',{style:isDispRow?{background:'#f0fdf4'}:{}},[
+el('td',{},[el('strong',{},l.oInizio)]),el('td',{},l.durata+'min'),
+el('td',{},isDisposizioneMateria(l.mat_nome)?el('span',{class:'pill pill-purple'},'Disposizione'):l.mat_nome),
+el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]),
+el('td',{},l.classe||'—'),el('td',{},l.aula||'—'),
+el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]),
+el('td',{},isAdmin?renderSelectSostituto(a,l,i,key,sost):(sost?frag(el('strong',{},sost.docCognSostituto),' ',sost.isDisposizione?el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione'):el('span',{class:'pill pill-green'},'✓ Assegnato')):el('span',{class:'pill pill-gray'},'Non assegnato')))
+]);
+tbody.appendChild(tr);
+});
 }
-
+return el('div',{class:'card'},[el('div',{class:'card-title'},['👤 Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')+' ',el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Assente tutto il giorno':'Permesso ora '+a.ora)]),el('div',{class:'tbl-wrap'},[el('table',{},[thead,tbody])])]);
+}
+ 
 // DROPDOWN
 if(!window._ddListenerAdded){window._ddListenerAdded=true;document.addEventListener('click',function(e){if(!e.target.closest('.dd-wrap'))document.querySelectorAll('.dd-menu.open').forEach(m=>m.classList.remove('open'));});}
-
+ 
 function renderSelectSostituto(assenza,lezione,idx,key,sost){
-  const disp=docentiDisponibili(lezione,STATE.selDate);
-  const valCorrente=sost?sost.docCognSostituto:'';
-  const wrap=el('div',{class:'dd-wrap'});
-  function isDispVal(v){return v&&disp.disposizioni.includes(v);}
-  function labelFor(v){if(!v)return'— Nessuno assegnato —';return isDispVal(v)?'⭐ '+v+' (a disposizione)':v;}
-  const triggerLabel=el('span',{class:'dd-label'},labelFor(valCorrente));
-  const trigger=el('button',{class:'dd-trigger'+(isDispVal(valCorrente)?' disp-sel':''),type:'button'},[triggerLabel,el('span',{class:'dd-arrow'},'▾')]);
-  const menu=el('div',{class:'dd-menu'});
-  const badge=el('div',{class:'dd-badge',style:{display:isDispVal(valCorrente)?'flex':'none'}},'⭐ A disposizione');
-  trigger.addEventListener('click',function(e){e.stopPropagation();document.querySelectorAll('.dd-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});menu.classList.toggle('open');});
-  function buildMenu(curVal){
-    menu.innerHTML='';
-    const noneOpt=el('div',{class:'dd-none'+(curVal===''?' selected':'')},'— Nessuno assegnato —');
-    noneOpt.addEventListener('click',function(e){e.stopPropagation();applyVal('');});
-    menu.appendChild(noneOpt);
-    [{label:'⭐ A disposizione — priorità massima',docs:disp.disposizioni,isDisp:true},{label:'🟢 Stesso docente in classe',docs:disp.stesseClassi,isDisp:false},{label:'🟡 Stessa materia',docs:disp.stessaMat,isDisp:false},{label:'⚪ Altri disponibili',docs:disp.liberi,isDisp:false}].forEach(function(g){
-      if(!g.docs||g.docs.length===0)return;
-      menu.appendChild(el('div',{class:'dd-group-label'+(g.isDisp?' disp-lbl':'')},g.label));
-      g.docs.forEach(function(d){
-        const isSel=d===curVal;
-        const item=el('div',{class:'dd-option'+(g.isDisp?' disp-opt':'')+(isSel?' selected':'')});
-        if(g.isDisp)item.appendChild(document.createTextNode('⭐ '));
-        item.appendChild(el('span',{},d));
-        if(isSel)item.appendChild(el('span',{style:{marginLeft:'auto',fontSize:'0.72rem'}},'✓'));
-        item.addEventListener('click',function(e){e.stopPropagation();applyVal(d);});
-        menu.appendChild(item);
-      });
-    });
-  }
-  async function applyVal(val){
-    menu.classList.remove('open');
-    const isD=isDispVal(val);
-    triggerLabel.textContent=labelFor(val);
-    trigger.className='dd-trigger'+(isD?' disp-sel':'');
-    badge.style.display=isD?'flex':'none';
-    buildMenu(val);
-    if(val){
-      const ok=await dbSalvaSostituzione(assenza.id,key,val,isD,assenza.docCogn);
-      if(ok){
-        const sostIdx=STATE.sostituzioni.findIndex(s=>s.assenzaId===assenza.id&&s.lessonKey===key);
-        const nuovaSost={assenzaId:assenza.id,lessonKey:key,docCognSostituto:val,isDisposizione:isD};
-        if(sostIdx>=0)STATE.sostituzioni[sostIdx]=nuovaSost;else STATE.sostituzioni.push(nuovaSost);
-        await inviaEmailSostituzione(assenza,lezione,val);
-        addToast((isD?'⭐ A disposizione assegnato':'✅ Sostituzione assegnata')+' — Prof. '+val);
-      }
-    } else {
-      await dbRimuoviSostituzione(assenza.id,key);
-      STATE.sostituzioni=STATE.sostituzioni.filter(s=>!(s.assenzaId===assenza.id&&s.lessonKey===key));
-      addToast('ℹ️ Sostituzione rimossa');
-    }
-  }
-  buildMenu(valCorrente);
-  wrap.appendChild(trigger);wrap.appendChild(menu);wrap.appendChild(badge);
-  return wrap;
+const disp=docentiDisponibili(lezione,STATE.selDate);
+const valCorrente=sost?sost.docCognSostituto:'';
+const wrap=el('div',{class:'dd-wrap'});
+function isDispVal(v){return v&&disp.disposizioni.includes(v);}
+function labelFor(v){if(!v)return'— Nessuno assegnato —';return isDispVal(v)?'⭐ '+v+' (a disposizione)':v;}
+const triggerLabel=el('span',{class:'dd-label'},labelFor(valCorrente));
+const trigger=el('button',{class:'dd-trigger'+(isDispVal(valCorrente)?' disp-sel':''),type:'button'},[triggerLabel,el('span',{class:'dd-arrow'},'▾')]);
+const menu=el('div',{class:'dd-menu'});
+const badge=el('div',{class:'dd-badge',style:{display:isDispVal(valCorrente)?'flex':'none'}},'⭐ A disposizione');
+trigger.addEventListener('click',function(e){e.stopPropagation();document.querySelectorAll('.dd-menu.open').forEach(m=>{if(m!==menu)m.classList.remove('open');});menu.classList.toggle('open');});
+function buildMenu(curVal){
+menu.innerHTML='';
+const noneOpt=el('div',{class:'dd-none'+(curVal===''?' selected':'')},'— Nessuno assegnato —');
+noneOpt.addEventListener('click',function(e){e.stopPropagation();applyVal('');});
+menu.appendChild(noneOpt);
+[{label:'⭐ A disposizione — priorità massima',docs:disp.disposizioni,isDisp:true},{label:'🟢 Stesso docente in classe',docs:disp.stesseClassi,isDisp:false},{label:'🟡 Stessa materia',docs:disp.stessaMat,isDisp:false},{label:'⚪ Altri disponibili',docs:disp.liberi,isDisp:false}].forEach(function(g){
+if(!g.docs||g.docs.length===0)return;
+menu.appendChild(el('div',{class:'dd-group-label'+(g.isDisp?' disp-lbl':'')},g.label));
+g.docs.forEach(function(d){
+const isSel=d===curVal;
+const item=el('div',{class:'dd-option'+(g.isDisp?' disp-opt':'')+(isSel?' selected':'')});
+if(g.isDisp)item.appendChild(document.createTextNode('⭐ '));
+item.appendChild(el('span',{},d));
+if(isSel)item.appendChild(el('span',{style:{marginLeft:'auto',fontSize:'0.72rem'}},'✓'));
+item.addEventListener('click',function(e){e.stopPropagation();applyVal(d);});
+menu.appendChild(item);
+});
+});
 }
-
+async function applyVal(val){
+menu.classList.remove('open');
+const isD=isDispVal(val);
+triggerLabel.textContent=labelFor(val);
+trigger.className='dd-trigger'+(isD?' disp-sel':'');
+badge.style.display=isD?'flex':'none';
+buildMenu(val);
+if(val){
+const ok=await dbSalvaSostituzione(assenza.id,key,val,isD);
+if(ok){
+const sostIdx=STATE.sostituzioni.findIndex(s=>s.assenzaId===assenza.id&&s.lessonKey===key);
+const nuovaSost={assenzaId:assenza.id,lessonKey:key,docCognSostituto:val,isDisposizione:isD};
+if(sostIdx>=0)STATE.sostituzioni[sostIdx]=nuovaSost;else STATE.sostituzioni.push(nuovaSost);
+await inviaEmailSostituzione(assenza,lezione,val);
+addToast((isD?'⭐ A disposizione assegnato':'✅ Sostituzione assegnata')+' — Prof. '+val);
+}
+} else {
+await dbRimuoviSostituzione(assenza.id,key);
+STATE.sostituzioni=STATE.sostituzioni.filter(s=>!(s.assenzaId===assenza.id&&s.lessonKey===key));
+addToast('ℹ️ Sostituzione rimossa');
+}
+}
+buildMenu(valCorrente);
+wrap.appendChild(trigger);wrap.appendChild(menu);wrap.appendChild(badge);
+return wrap;
+}
+ 
 // ================================================================
 // ORARIO
 // ================================================================
 function renderOrario(){
-  const tabs=['visualizza','importa','elimina'];
-  const tabLabels=['📋 Visualizza','📥 Importa CSV','🗑 Elimina'];
-  const activeTab=STATE._orarioTab||'visualizza';
-  const tabEls=tabs.map((t,i)=>el('button',{class:'day-tab'+(activeTab===t?' active':''),onclick:()=>{STATE._orarioTab=t;render();}},tabLabels[i]));
-  let content;
-  if(activeTab==='visualizza'){
-    const filtroGiorno=STATE._orarioFiltro||'';
-    const filtroOra=STATE._orarioFiltroOra||'';
-    const fGSel=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.85rem',fontFamily:'inherit'}});
-    fGSel.appendChild(el('option',{value:''},'Tutti i giorni'));
-    GIORNI.forEach(g=>fGSel.appendChild(el('option',{value:g},g)));
-    fGSel.value=filtroGiorno;
-    fGSel.addEventListener('change',e=>{STATE._orarioFiltro=e.target.value;STATE._orarioFiltroOra='';render();});
-    const oreDisp=[...new Set((filtroGiorno?STATE.orario.filter(r=>r.giorno===filtroGiorno):STATE.orario).map(r=>r.oInizio))].sort();
-    const fOSel=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.85rem',fontFamily:'inherit'}});
-    fOSel.appendChild(el('option',{value:''},'Tutte le ore'));
-    oreDisp.forEach(o=>fOSel.appendChild(el('option',{value:o},o)));
-    fOSel.value=filtroOra;
-    fOSel.addEventListener('change',e=>{STATE._orarioFiltroOra=e.target.value;render();});
-    let filtered=STATE.orario;
-    if(filtroGiorno)filtered=filtered.filter(r=>r.giorno===filtroGiorno);
-    if(filtroOra)filtered=filtered.filter(r=>r.oInizio===filtroOra);
-    const tbody=el('tbody',{});
-    if(STATE.orario.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessun orario caricato.')]));
-    else if(filtered.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna lezione con i filtri selezionati.')]));
-    else filtered.forEach(r=>{const isDisp=isDisposizioneMateria(r.mat_nome);tbody.appendChild(el('tr',{},[el('td',{},r.giorno),el('td',{},[el('strong',{},r.oInizio)]),el('td',{},r.durata+'min'),el('td',{},isDisp?el('span',{class:'pill pill-purple'},'Disposizione'):r.mat_nome),el('td',{},[...r.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]),el('td',{},r.classe||'—'),el('td',{},r.aula||'—'),el('td',{},[el('span',{class:'sede-'+(r.sede==='Betti'?'betti':'devincenti')},r.sede)])]));}); 
-    content=el('div',{class:'card'},[el('div',{style:{display:'flex',gap:'8px',marginBottom:'1rem',alignItems:'center',flexWrap:'wrap'}},[el('label',{style:{fontSize:'0.82rem',color:'#555',fontWeight:600}},'Giorno:'),fGSel,el('label',{style:{fontSize:'0.82rem',color:'#555',fontWeight:600,marginLeft:'4px'}},'Ora:'),fOSel,el('span',{style:{fontSize:'0.83rem',color:'#888',marginLeft:'4px'}},filtered.length+' lezioni')]),el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},'Giorno,Ora,Durata,Materia,Docente/i,Classe,Aula,Sede'.split(',').map(h=>el('th',{},h)))]),tbody])])]);
-  } else if(activeTab==='importa'){
-    const textarea=el('textarea',{rows:'12',style:{fontFamily:'monospace',fontSize:'0.78rem',resize:'vertical',width:'100%',border:'1px solid rgba(0,0,0,0.15)',borderRadius:'8px',padding:'0.55rem 0.75rem'}});
-    textarea.placeholder=CSV_ESEMPIO;
-    const inputFile=el('input',{type:'file',accept:'.csv,.txt',class:'hidden'});
-    inputFile.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{textarea.value=ev.target.result;};r.readAsText(f,'UTF-8');});
-    const uploadArea=el('div',{class:'upload-area'},[el('div',{style:{fontSize:'2rem'}},'📁'),el('div',{style:{fontWeight:600,marginTop:'0.5rem'}},'Clicca per selezionare un file CSV'),el('p',{style:{color:'#888',marginTop:'0.4rem',fontSize:'0.83rem'}},'oppure incolla il testo qui sotto')]);
-    uploadArea.addEventListener('click',()=>inputFile.click());
-    content=el('div',{class:'card'},[
-      el('div',{class:'section-note'},'Formato: durata, mat_nome, doc_cogn, doc_nome, classe, aula, giorno, o.inizio, sede — più docenti: separare con ; — Disposizione come materia per docenti a disposizione'),
-      inputFile,uploadArea,
-      el('div',{class:'form-group',style:{marginTop:'1rem'}},[el('label',{},'Contenuto CSV'),textarea]),
-      el('div',{style:{display:'flex',gap:'8px'}},[
-        el('button',{class:'btn btn-outline btn-sm',onclick:()=>{textarea.value=CSV_ESEMPIO;}},'Carica esempio'),
-        el('button',{class:'btn btn-primary',onclick:async()=>{
-          const txt=textarea.value||CSV_ESEMPIO;
-          try{const rows=parseCSV(txt);if(rows.length===0){addToast('⚠️ Nessuna riga valida',true);return;}
-          addToast('⏳ Salvataggio su Supabase...');const ok=await dbSalvaOrario(rows);if(ok){addToast('✅ Orario salvato: '+rows.length+' lezioni');STATE._orarioTab='visualizza';await caricaTutto();}}catch(e){addToast('❌ Errore CSV: '+e.message,true);}
-        }},'📥 Importa e salva su cloud')
-      ])
-    ]);
-  } else {
-    content=el('div',{class:'card'},[
-      el('p',{style:{marginBottom:'1rem'}},'Elimina tutto l\'orario dal database cloud.'),
-      el('button',{class:'btn btn-danger',onclick:async()=>{if(!confirm('Eliminare tutto l\'orario?'))return;const ok=await dbEliminaOrario();if(ok){addToast('✅ Orario eliminato');STATE._orarioTab='visualizza';await caricaTutto();}}},',🗑 Elimina tutto l\'orario')
-    ]);
-  }
-  return frag(el('div',{class:'page-title'},'📅 Gestione Orario'),el('div',{class:'day-tabs'},tabEls),content);
+const activeTab=STATE._orarioTab||'visualizza';
+const tabLabels={'visualizza':'📋 Visualizza','importa':'📥 Importa CSV','elimina':'🗑 Elimina'};
+const tabEls=Object.keys(tabLabels).map(t=>el('button',{class:'day-tab'+(activeTab===t?' active':''),onclick:()=>{STATE._orarioTab=t;render();}},tabLabels[t]));
+let content;
+if(activeTab==='visualizza'){
+const filtroGiorno=STATE._orarioFiltro||'',filtroOra=STATE._orarioFiltroOra||'';
+const fGSel=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.85rem',fontFamily:'inherit'}});
+fGSel.appendChild(el('option',{value:''},'Tutti i giorni'));
+GIORNI.forEach(g=>fGSel.appendChild(el('option',{value:g},g)));
+fGSel.value=filtroGiorno;
+fGSel.addEventListener('change',e=>{STATE._orarioFiltro=e.target.value;STATE._orarioFiltroOra='';render();});
+const oreDisp=[...new Set((filtroGiorno?STATE.orario.filter(r=>r.giorno===filtroGiorno):STATE.orario).map(r=>r.oInizio))].sort();
+const fOSel=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.85rem',fontFamily:'inherit'}});
+fOSel.appendChild(el('option',{value:''},'Tutte le ore'));
+oreDisp.forEach(o=>fOSel.appendChild(el('option',{value:o},o)));
+fOSel.value=filtroOra;
+fOSel.addEventListener('change',e=>{STATE._orarioFiltroOra=e.target.value;render();});
+let filtered=STATE.orario;
+if(filtroGiorno)filtered=filtered.filter(r=>r.giorno===filtroGiorno);
+if(filtroOra)filtered=filtered.filter(r=>r.oInizio===filtroOra);
+const tbody=el('tbody',{});
+if(STATE.orario.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessun orario caricato.')]));
+else if(filtered.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna lezione con i filtri selezionati.')]));
+else filtered.forEach(r=>{const isDisp=isDisposizioneMateria(r.mat_nome);tbody.appendChild(el('tr',{},[el('td',{},r.giorno),el('td',{},[el('strong',{},r.oInizio)]),el('td',{},r.durata+'min'),el('td',{},isDisp?el('span',{class:'pill pill-purple'},'Disposizione'):r.mat_nome),el('td',{},[...r.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]),el('td',{},r.classe||'—'),el('td',{},r.aula||'—'),el('td',{},[el('span',{class:'sede-'+(r.sede==='Betti'?'betti':'devincenti')},r.sede)])]));}); 
+content=el('div',{class:'card'},[
+el('div',{style:{display:'flex',gap:'8px',marginBottom:'1rem',alignItems:'center',flexWrap:'wrap'}},[el('label',{style:{fontSize:'0.82rem',color:'#555',fontWeight:600}},'Giorno:'),fGSel,el('label',{style:{fontSize:'0.82rem',color:'#555',fontWeight:600,marginLeft:'4px'}},'Ora:'),fOSel,el('span',{style:{fontSize:'0.83rem',color:'#888',marginLeft:'4px'}},filtered.length+' lezioni')]),
+el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},'Giorno,Ora,Durata,Materia,Docente/i,Classe,Aula,Sede'.split(',').map(h=>el('th',{},h)))]),tbody])])
+]);
+} else if(activeTab==='importa'){
+const textarea=el('textarea',{rows:'12',style:{fontFamily:'monospace',fontSize:'0.78rem',resize:'vertical',width:'100%',border:'1px solid rgba(0,0,0,0.15)',borderRadius:'8px',padding:'0.55rem 0.75rem'}});
+textarea.placeholder=CSV_ESEMPIO;
+const inputFile=el('input',{type:'file',accept:'.csv,.txt',class:'hidden'});
+inputFile.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{textarea.value=ev.target.result;};r.readAsText(f,'UTF-8');});
+const uploadArea=el('div',{class:'upload-area'},[el('div',{style:{fontSize:'2rem'}},'📁'),el('div',{style:{fontWeight:600,marginTop:'0.5rem'}},'Clicca per selezionare un file CSV'),el('p',{style:{color:'#888',marginTop:'0.4rem',fontSize:'0.83rem'}},'oppure incolla il testo qui sotto')]);
+uploadArea.addEventListener('click',()=>inputFile.click());
+content=el('div',{class:'card'},[
+el('div',{class:'section-note'},[
+'Formato: durata, mat_nome, doc_cogn, doc_nome, classe, aula, giorno, o.inizio, sede',el('br',{}),
+'✅ Formati ora accettati: ',el('code',{},'08:00'),', ',el('code',{},'08h00'),', ',el('code',{},'8h00'),', ',el('code',{},'8.00'),', ',el('code',{},'800'),' → tutti convertiti automaticamente a HH:MM'
+]),
+inputFile,uploadArea,
+el('div',{class:'form-group',style:{marginTop:'1rem'}},[el('label',{},'Contenuto CSV'),textarea]),
+el('div',{style:{display:'flex',gap:'8px'}},[
+el('button',{class:'btn btn-outline btn-sm',onclick:()=>{textarea.value=CSV_ESEMPIO;}},'Carica esempio'),
+el('button',{class:'btn btn-primary',onclick:async()=>{
+const txt=textarea.value||CSV_ESEMPIO;
+try{const rows=parseCSV(txt);if(rows.length===0){addToast('⚠️ Nessuna riga valida',true);return;}
+addToast('⏳ Salvataggio su Supabase...');const ok=await dbSalvaOrario(rows);if(ok){addToast('✅ Orario salvato: '+rows.length+' lezioni');STATE._orarioTab='visualizza';await caricaTutto();}}catch(e){addToast('❌ Errore CSV: '+e.message,true);}
+}},'📥 Importa e salva su cloud')
+])
+]);
+} else {
+content=el('div',{class:'card'},[
+el('p',{style:{marginBottom:'1rem'}},'Elimina tutto l\'orario dal database cloud.'),
+el('button',{class:'btn btn-danger',onclick:async()=>{if(!confirm('Eliminare tutto l\'orario?'))return;const ok=await dbEliminaOrario();if(ok){addToast('✅ Orario eliminato');STATE._orarioTab='visualizza';await caricaTutto();}}},'🗑 Elimina tutto l\'orario')
+]);
 }
-
+return frag(el('div',{class:'page-title'},'📅 Gestione Orario'),el('div',{class:'day-tabs'},tabEls),content);
+}
+ 
 // ================================================================
 // UTENTI
 // ================================================================
 function renderUtenti(){
-  const tbody=el('tbody',{});
-  STATE.utenti.forEach(u=>{
-    const editBtn=el('button',{class:'btn btn-outline btn-sm'},'✏️');
-    editBtn.addEventListener('click',()=>apriModaleUtente(u));
-    const delBtn=el('button',{class:'btn btn-danger btn-sm',style:{marginLeft:'4px'}},'🗑');
-    delBtn.addEventListener('click',async()=>{
-      if(u.id===STATE.currentUser.id){alert('Non puoi eliminare te stesso!');return;}
-      if(!confirm('Eliminare '+u.cognome+'?'))return;
-      const ok=await dbEliminaUtente(u.id);
-      if(ok){addToast('✅ Utente eliminato');await caricaTutto();}
-    });
-    tbody.appendChild(el('tr',{},[el('td',{},[el('strong',{},u.cognome+' '+u.nome)]),el('td',{},[el('code',{},u.username)]),el('td',{style:{fontSize:'0.82rem',color:'#555'}},u.email),el('td',{},[el('span',{class:'pill '+(u.ruolo==='admin'?'pill-blue':'pill-green')},u.ruolo==='admin'?'Admin':'Docente')]),el('td',{},[editBtn,delBtn])]));
-  });
-  return frag(
-    el('div',{class:'page-title'},'👥 Gestione Utenti'),
-    el('div',{class:'card'},[
-      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Utenti del sistema'),el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriModaleUtente(null)},'+ Nuovo utente')]),
-      el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Nome'),el('th',{},'Username'),el('th',{},'Email'),el('th',{},'Ruolo'),el('th',{},'Azioni')])]),tbody])])
-    ])
-  );
+const tbody=el('tbody',{});
+STATE.utenti.forEach(u=>{
+const editBtn=el('button',{class:'btn btn-outline btn-sm'},'✏️');
+editBtn.addEventListener('click',()=>apriModaleUtente(u));
+const delBtn=el('button',{class:'btn btn-danger btn-sm',style:{marginLeft:'4px'}},'🗑');
+delBtn.addEventListener('click',async()=>{
+if(u.id===STATE.currentUser.id){alert('Non puoi eliminare te stesso!');return;}
+if(!confirm('Eliminare '+u.cognome+'?'))return;
+const ok=await dbEliminaUtente(u.id);
+if(ok){addToast('✅ Utente eliminato');await caricaTutto();}
+});
+tbody.appendChild(el('tr',{},[el('td',{},[el('strong',{},u.cognome+' '+u.nome)]),el('td',{},[el('code',{},u.username||'—')]),el('td',{style:{fontSize:'0.82rem',color:'#555'}},u.email),el('td',{},[el('span',{class:'pill '+(u.ruolo==='admin'?'pill-blue':'pill-green')},u.ruolo==='admin'?'Admin':'Docente')]),el('td',{},[editBtn,delBtn])]));
+});
+return frag(
+el('div',{class:'page-title'},'👥 Gestione Utenti'),
+el('div',{class:'card'},[
+el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Utenti del sistema'),el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriModaleUtente(null)},'+ Nuovo utente')]),
+el('div',{class:'section-note'},'ℹ️ Il nuovo utente riceverà email di conferma da Supabase. In Supabase → Authentication → Settings puoi disabilitare la conferma email per accessi immediati.'),
+el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Nome'),el('th',{},'Username'),el('th',{},'Email'),el('th',{},'Ruolo'),el('th',{},'Azioni')])]),tbody])])
+])
+);
 }
-
+ 
 function apriModaleUtente(utente){
-  const isEdit=!!utente;
-  const errDiv=el('div',{class:'err-msg hidden'});
-  const inpNome=el('input',{type:'text',value:utente?utente.nome:'',placeholder:'es. Marco'});
-  const inpCogn=el('input',{type:'text',value:utente?utente.cognome:'',placeholder:'es. Rossi'});
-  const inpUser=el('input',{type:'text',value:utente?utente.username:'',placeholder:'es. rossi'});
-  if(isEdit)inpUser.disabled=true;
-  const inpPass=el('input',{type:'password',placeholder:isEdit?'(lascia vuoto per non cambiare)':'password'});
-  const inpEmail=el('input',{type:'email',value:utente?utente.email:'',placeholder:'nome@scuola.edu'});
-  const selRuolo=el('select',{});
-  [['docente','Docente'],['admin','Amministratore']].forEach(([v,l])=>{const o=el('option',{value:v},l);if(utente&&utente.ruolo===v)o.selected=true;selRuolo.appendChild(o);});
-  async function submit(){
-    const nome=inpNome.value.trim(),cogn=inpCogn.value.trim(),user=isEdit?utente.username:inpUser.value.trim();
-    const pass=inpPass.value,email=inpEmail.value.trim(),ruolo=selRuolo.value;
-    if(!nome||!cogn||!user||!email||(!isEdit&&!pass)){errDiv.textContent='Compila tutti i campi';errDiv.className='err-msg';return;}
-    if(isEdit){
-      const updates={nome,cognome:cogn,email,ruolo};
-      const ok=await dbModificaUtente(utente.id,updates);
-      if(ok){addToast('✅ Utente modificato');STATE.modal=null;await caricaTutto();}
-    } else {
-      const ok=await dbCreaUtente({username:user,password:pass,nome,cognome:cogn,email,ruolo});
-      if(ok){addToast('✅ Utente creato');STATE.modal=null;await caricaTutto();}
-    }
-  }
-  STATE.modal={title:(isEdit?'✏️ Modifica utente':'➕ Nuovo utente'),body:el('div',{},[errDiv,el('div',{class:'grid2'},[el('div',{class:'form-group'},[el('label',{},'Nome'),inpNome]),el('div',{class:'form-group'},[el('label',{},'Cognome'),inpCogn])]),el('div',{class:'form-group'},[el('label',{},'Username'),inpUser]),!isEdit?el('div',{class:'form-group'},[el('label',{},'Password iniziale'),inpPass]):null,el('div',{class:'form-group'},[el('label',{},'Email'),inpEmail]),el('div',{class:'form-group'},[el('label',{},'Ruolo'),selRuolo])]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:isEdit?'Salva':'Crea utente',cls:'btn btn-primary',cb:submit}]};
-  render();
+const isEdit=!!utente;
+const errDiv=el('div',{class:'err-msg hidden'});
+const inpNome=el('input',{type:'text',value:utente?utente.nome:'',placeholder:'es. Marco'});
+const inpCogn=el('input',{type:'text',value:utente?utente.cognome:'',placeholder:'es. Rossi'});
+const inpUser=el('input',{type:'text',value:utente?utente.username||'':'',placeholder:'es. rossi'});
+if(isEdit)inpUser.disabled=true;
+const inpPass=el('input',{type:'password',placeholder:isEdit?'(lascia vuoto per non cambiare)':'minimo 6 caratteri'});
+const inpEmail=el('input',{type:'email',value:utente?utente.email:'',placeholder:'nome@ettoreconti.edu.it'});
+const selRuolo=el('select',{});
+[['docente','Docente'],['admin','Amministratore']].forEach(([v,l])=>{const o=el('option',{value:v},l);if(utente&&utente.ruolo===v)o.selected=true;selRuolo.appendChild(o);});
+async function submit(){
+const nome=inpNome.value.trim(),cogn=inpCogn.value.trim(),user=isEdit?utente.username:inpUser.value.trim();
+const pass=inpPass.value,email=inpEmail.value.trim(),ruolo=selRuolo.value;
+if(!nome||!cogn||!user||!email||(!isEdit&&!pass)){errDiv.textContent='Compila tutti i campi';errDiv.className='err-msg';return;}
+if(!isEdit&&pass.length<6){errDiv.textContent='Password di almeno 6 caratteri';errDiv.className='err-msg';return;}
+if(isEdit){
+const ok=await dbModificaUtente(utente.id,{nome,cognome:cogn,email,ruolo});
+if(ok){addToast('✅ Utente modificato');STATE.modal=null;await caricaTutto();}
+} else {
+const ok=await dbCreaUtente({username:user,password:pass,nome,cognome:cogn,email,ruolo});
+if(ok){addToast('✅ Utente creato');STATE.modal=null;await caricaTutto();}
 }
-
+}
+STATE.modal={title:(isEdit?'✏️ Modifica utente':'➕ Nuovo utente'),body:el('div',{},[errDiv,el('div',{class:'grid2'},[el('div',{class:'form-group'},[el('label',{},'Nome'),inpNome]),el('div',{class:'form-group'},[el('label',{},'Cognome'),inpCogn])]),el('div',{class:'form-group'},[el('label',{},'Username'),inpUser]),!isEdit?el('div',{class:'form-group'},[el('label',{},'Password'),inpPass]):null,el('div',{class:'form-group'},[el('label',{},'Email'),inpEmail]),el('div',{class:'form-group'},[el('label',{},'Ruolo'),selRuolo])]),actions:[{label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},{label:isEdit?'Salva':'Crea utente',cls:'btn btn-primary',cb:submit}]};
+render();
+}
+ 
 // ================================================================
 // EMAIL LOG
 // ================================================================
 function renderEmail(){
-  return frag(
-    el('div',{class:'page-title'},'📧 Log Notifiche Email'),
-    el('div',{class:'section-note'},'Le email sono inviate via EmailJS. Qui il registro di tutti gli invii.'),
-    el('div',{class:'card'},[
-      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},STATE.emailLog.length+' notifiche'),el('button',{class:'btn btn-outline btn-sm',onclick:async()=>{await caricaTutto();}},'🔄 Aggiorna')]),
-      STATE.emailLog.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna email registrata'):frag(...STATE.emailLog.map(m=>el('div',{class:'notif notif-ok',style:{marginBottom:'6px',fontFamily:'monospace',fontSize:'0.78rem',wordBreak:'break-all'}},m)))
-    ])
-  );
+return frag(
+el('div',{class:'page-title'},'📧 Log Notifiche Email'),
+el('div',{class:'section-note'},'Le email sono inviate via EmailJS. Registro completo degli invii.'),
+el('div',{class:'card'},[
+el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},STATE.emailLog.length+' notifiche'),el('button',{class:'btn btn-outline btn-sm',onclick:async()=>{await caricaTutto();}},'🔄 Aggiorna')]),
+STATE.emailLog.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna email registrata'):frag(...STATE.emailLog.map(m=>el('div',{class:'notif notif-ok',style:{marginBottom:'6px',fontFamily:'monospace',fontSize:'0.78rem',wordBreak:'break-all'}},m)))
+])
+);
 }
-
+ 
 // ================================================================
 // MODAL
 // ================================================================
 function renderModal(){
-  const m=STATE.modal;if(!m)return null;
-  const bg=el('div',{class:'modal-bg'});
-  const modal=el('div',{class:'modal'});
-  modal.appendChild(el('div',{class:'modal-title'},[m.title,el('button',{class:'modal-close',onclick:()=>{STATE.modal=null;render();}},'✕')]));
-  modal.appendChild(m.body);
-  modal.appendChild(el('div',{class:'modal-actions'},m.actions.map(a=>{const b=el('button',{class:a.cls},a.label);b.addEventListener('click',a.cb);return b;})));
-  bg.appendChild(modal);
-  bg.addEventListener('click',e=>{if(e.target===bg){STATE.modal=null;render();}});
-  return bg;
+const m=STATE.modal;if(!m)return null;
+const bg=el('div',{class:'modal-bg'});
+const modal=el('div',{class:'modal'});
+modal.appendChild(el('div',{class:'modal-title'},[m.title,el('button',{class:'modal-close',onclick:()=>{STATE.modal=null;render();}},'✕')]));
+modal.appendChild(m.body);
+modal.appendChild(el('div',{class:'modal-actions'},m.actions.map(a=>{const b=el('button',{class:a.cls},a.label);b.addEventListener('click',a.cb);return b;})));
+bg.appendChild(modal);
+bg.addEventListener('click',e=>{if(e.target===bg){STATE.modal=null;render();}});
+return bg;
 }
-
+ 
 // ================================================================
 // AVVIO
 // ================================================================
