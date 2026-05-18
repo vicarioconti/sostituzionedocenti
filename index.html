@@ -667,63 +667,125 @@ function apriFinestraAssenza(){
   const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
   const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
   const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
-  let tipo='giorno',selectedDoc='',selectedOra='',selectedDateDa=STATE.selDate,selectedDateA=STATE.selDate;
+
+  // stato interno
+  let tipo='giorno', modalitaData='singolo'; // 'singolo' | 'periodo'
+  let selectedDoc='', selectedOra='';
+  let selectedDate=STATE.selDate, selectedDateDa=STATE.selDate, selectedDateA=STATE.selDate;
+
   const errDiv=el('div',{class:'err-msg hidden'});
 
-  // Anteprima giorni
-  const previewEl=el('div',{style:{fontSize:'0.78rem',color:'#555',marginTop:'4px',minHeight:'18px'}});
-  function aggiornaPreview(){
-    if(!selectedDateDa||!selectedDateA||selectedDateA<selectedDateDa){previewEl.textContent='';return;}
-    const days=dateRange(selectedDateDa,selectedDateA);
-    previewEl.textContent=days.length===1?'1 giorno selezionato':days.length+' giorni (domeniche escluse)';
-  }
-
+  // ── Docente ──
   const selDocente=el('select',{});
   selDocente.appendChild(el('option',{value:''},'— Seleziona docente —'));
-  tuttiDocenti.forEach(d=>{selDocente.appendChild(el('option',{value:d},d));});
-  selDocente.addEventListener('change',e=>{selectedDoc=e.target.value;});
+  tuttiDocenti.forEach(d=>selDocente.appendChild(el('option',{value:d},d)));
+  selDocente.addEventListener('change',e=>selectedDoc=e.target.value);
 
-  const selDataDa=el('input',{type:'date',value:selectedDateDa});
-  const selDataA=el('input',{type:'date',value:selectedDateA});
-  selDataDa.addEventListener('change',e=>{
-    selectedDateDa=e.target.value;
-    if(selectedDateA<selectedDateDa){selDataA.value=selectedDateDa;selectedDateA=selectedDateDa;}
-    aggiornareOre();aggiornaPreview();
-  });
-  selDataA.addEventListener('change',e=>{selectedDateA=e.target.value;aggiornaPreview();});
-
+  // ── Tipo assenza ──
   const selTipo=el('select',{});
   [['giorno','Tutto il giorno'],['ora','Permesso orario']].forEach(([v,l])=>selTipo.appendChild(el('option',{value:v},l)));
 
+  // ── Ora ──
   const wrapOra=el('div',{class:'form-group',style:{display:'none'}});
   const selOra=el('select',{});
-  selOra.addEventListener('change',e=>{selectedOra=e.target.value;});
-  function aggiornareOre(){
+  selOra.addEventListener('change',e=>selectedOra=e.target.value);
+  function aggiornareOre(refDate){
     selOra.innerHTML='';
-    const giorno=getDayName(selectedDateDa);
+    const giorno=getDayName(refDate||selectedDate);
     const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)).map(r=>r.oInizio))].sort();
     (ore.length>0?ore:['08:00','09:00','10:00','11:00','12:00','13:00']).forEach(o=>selOra.appendChild(el('option',{value:o},o)));
     selectedOra=selOra.value;
   }
-  aggiornareOre();aggiornaPreview();
+  wrapOra.appendChild(el('label',{},'Ora interessata'));
+  wrapOra.appendChild(selOra);
+
+  // ── Toggle modalità data ──
+  const btnSingolo=el('button',{type:'button',class:'btn btn-primary btn-sm'},'📅 Giorno singolo');
+  const btnPeriodo=el('button',{type:'button',class:'btn btn-outline btn-sm'},'📆 Periodo (dal… al…)');
+
+  // ── Blocco giorno singolo ──
+  const inpData=el('input',{type:'date',value:selectedDate});
+  inpData.addEventListener('change',e=>{selectedDate=e.target.value;aggiornareOre(selectedDate);});
+  const wrapSingolo=el('div',{class:'form-group'},[el('label',{},'Data'),inpData]);
+
+  // ── Blocco periodo ──
+  const inpDa=el('input',{type:'date',value:selectedDateDa});
+  const inpA=el('input',{type:'date',value:selectedDateA});
+  const previewEl=el('div',{style:{fontSize:'0.78rem',color:'#1a56a0',marginTop:'4px',minHeight:'18px'}});
+  function aggiornaPreview(){
+    if(!selectedDateDa||!selectedDateA||selectedDateA<selectedDateDa){previewEl.textContent='';return;}
+    const n=dateRange(selectedDateDa,selectedDateA).length;
+    previewEl.textContent='→ '+n+(n===1?' giorno':' giorni')+' (domeniche escluse)';
+  }
+  inpDa.addEventListener('change',e=>{
+    selectedDateDa=e.target.value;
+    if(selectedDateA<selectedDateDa){inpA.value=selectedDateDa;selectedDateA=selectedDateDa;}
+    aggiornareOre(selectedDateDa);aggiornaPreview();
+  });
+  inpA.addEventListener('change',e=>{selectedDateA=e.target.value;aggiornaPreview();});
+  const wrapPeriodo=el('div',{style:{display:'none'}},[
+    el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'0.25rem'}},[
+      el('div',{class:'form-group',style:{margin:0}},[el('label',{},'Dal'),inpDa]),
+      el('div',{class:'form-group',style:{margin:0}},[el('label',{},'Al'),inpA]),
+    ]),
+    previewEl
+  ]);
+
+  // ── Logica toggle ──
+  function applicaModalita(m){
+    modalitaData=m;
+    if(m==='singolo'){
+      btnSingolo.className='btn btn-primary btn-sm';
+      btnPeriodo.className='btn btn-outline btn-sm';
+      wrapSingolo.style.display='';
+      wrapPeriodo.style.display='none';
+    } else {
+      btnSingolo.className='btn btn-outline btn-sm';
+      btnPeriodo.className='btn btn-primary btn-sm';
+      wrapSingolo.style.display='none';
+      wrapPeriodo.style.display='';
+      aggiornaPreview();
+    }
+  }
+  btnSingolo.addEventListener('click',()=>applicaModalita('singolo'));
+  btnPeriodo.addEventListener('click',()=>{
+    // Periodo non disponibile per permesso orario
+    if(tipo==='ora'){errDiv.textContent='Il permesso orario è disponibile solo per un giorno singolo';errDiv.className='err-msg';return;}
+    errDiv.className='err-msg hidden';
+    applicaModalita('periodo');
+  });
+
   selTipo.addEventListener('change',e=>{
     tipo=e.target.value;
     wrapOra.style.display=tipo==='ora'?'block':'none';
-    // Range disabilitato per permesso orario (ha senso solo su un giorno)
-    selDataA.disabled=tipo==='ora';
-    if(tipo==='ora'){selDataA.value=selDataDa.value;selectedDateA=selectedDateDa;}
-    aggiornaPreview();
+    if(tipo==='ora'){
+      applicaModalita('singolo');
+      btnPeriodo.disabled=true;
+      btnPeriodo.title='Non disponibile per permesso orario';
+    } else {
+      btnPeriodo.disabled=false;
+      btnPeriodo.title='';
+    }
   });
-  wrapOra.appendChild(el('label',{},'Ora interessata'));wrapOra.appendChild(selOra);
 
+  aggiornareOre(selectedDate);
+
+  // ── Submit ──
   async function submit(){
+    errDiv.className='err-msg hidden';
     if(!selectedDoc){errDiv.textContent='Seleziona un docente';errDiv.className='err-msg';return;}
-    if(!selectedDateDa){errDiv.textContent='Seleziona la data di inizio';errDiv.className='err-msg';return;}
     if(tipo==='ora'&&!selectedOra){errDiv.textContent='Seleziona l\'ora';errDiv.className='err-msg';return;}
-    if(selectedDateA<selectedDateDa){errDiv.textContent='La data di fine deve essere uguale o successiva alla data di inizio';errDiv.className='err-msg';return;}
+    let dates;
+    if(modalitaData==='singolo'){
+      if(!selectedDate){errDiv.textContent='Seleziona una data';errDiv.className='err-msg';return;}
+      dates=[selectedDate];
+    } else {
+      if(!selectedDateDa||!selectedDateA){errDiv.textContent='Seleziona le date del periodo';errDiv.className='err-msg';return;}
+      if(selectedDateA<selectedDateDa){errDiv.textContent='La data di fine deve essere uguale o successiva alla data di inizio';errDiv.className='err-msg';return;}
+      dates=dateRange(selectedDateDa,selectedDateA);
+      if(dates.length===0){errDiv.textContent='Nessun giorno valido nel periodo selezionato';errDiv.className='err-msg';return;}
+    }
     const utente=STATE.utenti.find(u=>u.cognome===selectedDoc);
-    const dates=tipo==='ora'?[selectedDateDa]:dateRange(selectedDateDa,selectedDateA);
-    // Inserisci una riga per ogni giorno
     let salvate=0;
     for(const d of dates){
       const nuova={docCogn:selectedDoc,docNome:utente?utente.nome:'',tipo,ora:tipo==='ora'?selectedOra:'',date:d};
@@ -731,27 +793,23 @@ function apriFinestraAssenza(){
       if(saved){nuova.id=saved.id;await inviaEmailAssenza(nuova);salvate++;}
     }
     if(salvate>0){
-      STATE.selDate=selectedDateDa;STATE.modal=null;
-      addToast('✅ '+(salvate===1?'Assenza inserita':''+salvate+' assenze inserite'));
+      STATE.selDate=modalitaData==='singolo'?selectedDate:selectedDateDa;
+      STATE.modal=null;
+      addToast('✅ '+(salvate===1?'Assenza inserita':salvate+' assenze inserite'));
       await caricaTutto();
     }
   }
-
-  // Riga date con Da / A affiancati
-  const rigaDate=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},[ 
-    el('div',{class:'form-group',style:{margin:0}},[el('label',{},'Dal'),selDataDa]),
-    el('div',{class:'form-group',style:{margin:0}},[el('label',{},'Al'),selDataA]),
-  ]);
 
   STATE.modal={
     title:'➕ Inserisci Nuova Assenza',
     body:el('div',{},[
       errDiv,
       el('div',{class:'form-group'},[el('label',{},'Docente assente'),selDocente]),
-      el('div',{class:'form-group'},[el('label',{},'Tipo assenza'),selTipo,el('div',{style:{fontSize:'0.75rem',color:'#888',marginTop:'3px'}},'⚠️ Permesso orario: solo un giorno alla volta')]),
-      rigaDate,
-      previewEl,
-      wrapOra
+      el('div',{class:'form-group'},[el('label',{},'Tipo assenza'),selTipo]),
+      el('div',{style:{display:'flex',gap:'8px',marginBottom:'1rem'}},[btnSingolo,btnPeriodo]),
+      wrapSingolo,
+      wrapPeriodo,
+      wrapOra,
     ]),
     actions:[
       {label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},
