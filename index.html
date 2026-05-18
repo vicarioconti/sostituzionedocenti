@@ -167,8 +167,10 @@ let STATE={
   currentUser:null,ruolo:null,logoUrl:null,
   page:'sostituzioni',selDate:todayStr(),
   orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[],
+  emailErrorLog:[],
   toasts:[],modal:null,loading:false,
-  _orarioTab:'visualizza',_orarioFiltro:'',_orarioFiltroOra:''
+  _orarioTab:'visualizza',_orarioFiltro:'',_orarioFiltroOra:'',
+  _emailTab:'log'
 };
 
 // Logo persistito in localStorage (solo immagine piccola, nessun dato sensibile)
@@ -283,20 +285,77 @@ async function inviaEmailAssenza(assenza){
   const email=utente?utente.email:`${assenza.docCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
   const oggetto=`Conferma assenza ${formatDate(assenza.date)}`;
   const corpo=assenza.tipo==='giorno'?'Assenza intera giornata':'Permesso orario — ora '+assenza.ora;
+  const params={to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la Sua assenza:\n📅 ${formatDate(assenza.date)}\n⏰ ${corpo}\n\nCordiali saluti,\nSegreteria`};
   try{
-    await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la Sua assenza:\n📅 ${formatDate(assenza.date)}\n⏰ ${corpo}\n\nCordiali saluti,\nSegreteria`});
-    await dbLogEmail(email,oggetto,corpo,'inviata');addToast('📧 Email inviata a '+email);
-  }catch(e){console.warn('EmailJS:',e);await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));addToast('⚠️ Email non inviata',true);}
+    const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,params);
+    await dbLogEmail(email,oggetto,corpo,'inviata');
+    addToast('📧 Email inviata a '+email);
+    logEmailSuccess({tipo:'assenza',email,oggetto,resp});
+  }catch(e){
+    console.warn('EmailJS:',e);
+    const errEntry=logEmailError({tipo:'assenza',email,oggetto,params,err:e});
+    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||e.message||String(e)));
+    addToast('⚠️ Email non inviata — vedi Log Errori per dettagli',true);
+  }
 }
 async function inviaEmailSostituzione(assenza,lezione,sostitutoCogn){
   const utente=STATE.utenti.find(u=>u.cognome===sostitutoCogn);
   const email=utente?utente.email:`${sostitutoCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
   const oggetto=`Sostituzione assegnata — ${formatDate(assenza.date)} ore ${lezione.oInizio}`;
   const corpo=`📅 ${formatDate(assenza.date)} | ⏰ ${lezione.oInizio} | 👤 Assente: ${assenza.docCogn} | 📚 ${lezione.mat_nome} | 🏫 ${lezione.classe} | 🚪 ${lezione.aula||'—'} | 📍 ${lezione.sede}`;
+  const params={to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria`};
   try{
-    await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria`});
+    const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,params);
     await dbLogEmail(email,oggetto,corpo,'inviata');
-  }catch(e){console.warn('EmailJS:',e);await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||String(e)));addToast('⚠️ Email sostituzione non inviata',true);}
+    logEmailSuccess({tipo:'sostituzione',email,oggetto,resp});
+  }catch(e){
+    console.warn('EmailJS:',e);
+    logEmailError({tipo:'sostituzione',email,oggetto,params,err:e});
+    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||e.message||String(e)));
+    addToast('⚠️ Email sostituzione non inviata — vedi Log Errori',true);
+  }
+}
+
+// ================================================================
+// EMAIL ERROR LOG — dettagliato in-page
+// ================================================================
+function logEmailError({tipo,email,oggetto,params,err}){
+  const entry={
+    id: Date.now(),
+    ts: new Date().toISOString(),
+    tipo,
+    email,
+    oggetto,
+    status: err.status || null,
+    text: err.text || null,
+    message: err.message || null,
+    name: err.name || null,
+    raw: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+    params: JSON.stringify(params, null, 2),
+    cfg: {
+      serviceId: CFG.EMAILJS_SERVICE_ID,
+      templateId: CFG.EMAILJS_TEMPLATE_ID,
+      publicKey: CFG.EMAILJS_PUBLIC_KEY ? CFG.EMAILJS_PUBLIC_KEY.slice(0,6)+'…' : '(vuota)',
+    },
+    isError: true,
+  };
+  STATE.emailErrorLog.unshift(entry);
+  if(STATE.emailErrorLog.length>50) STATE.emailErrorLog.pop();
+  return entry;
+}
+function logEmailSuccess({tipo,email,oggetto,resp}){
+  const entry={
+    id: Date.now(),
+    ts: new Date().toISOString(),
+    tipo,
+    email,
+    oggetto,
+    status: resp?.status,
+    text: resp?.text,
+    isError: false,
+  };
+  STATE.emailErrorLog.unshift(entry);
+  if(STATE.emailErrorLog.length>50) STATE.emailErrorLog.pop();
 }
 
 // ================================================================
@@ -832,13 +891,205 @@ function apriModaleUtente(utente){
 // EMAIL LOG
 // ================================================================
 function renderEmail(){
+  const tab=STATE._emailTab||'log';
+
+  // ── Tab bar ──
+  const tabBar=el('div',{class:'day-tabs'},[
+    el('div',{class:'day-tab'+(tab==='log'?' active':''),onclick:()=>{STATE._emailTab='log';render();}},'📋 Log invii'),
+    el('div',{class:'day-tab'+(tab==='errori'?' active':''),onclick:()=>{STATE._emailTab='errori';render();}},
+      '🔴 Errori EmailJS'+(STATE.emailErrorLog.filter(e=>e.isError).length?' ('+STATE.emailErrorLog.filter(e=>e.isError).length+')':'')),
+    el('div',{class:'day-tab'+(tab==='diagnostica'?' active':''),onclick:()=>{STATE._emailTab='diagnostica';render();}},'🔧 Diagnostica'),
+  ]);
+
+  let content;
+
+  if(tab==='log'){
+    // ── LOG INVII (esistente) ──
+    content=el('div',{class:'card'},[
+      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[
+        el('div',{class:'card-title',style:{marginBottom:0}},STATE.emailLog.length+' notifiche (DB)'),
+        el('button',{class:'btn btn-outline btn-sm',onclick:async()=>{await caricaTutto();}},'🔄 Aggiorna'),
+      ]),
+      STATE.emailLog.length===0
+        ?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna email registrata')
+        :frag(...STATE.emailLog.map(m=>el('div',{class:'notif notif-ok',style:{marginBottom:'6px',fontFamily:'monospace',fontSize:'0.78rem',wordBreak:'break-all'}},m)))
+    ]);
+
+  } else if(tab==='errori'){
+    // ── ERRORI EMAILJS (in-memory, sessione corrente) ──
+    const errors=STATE.emailErrorLog;
+    const errRows=errors.length===0
+      ?[el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'1rem 0'}},'Nessun errore registrato in questa sessione. Gli errori appaiono qui in tempo reale quando un invio fallisce.')]
+      :errors.map(e=>{
+          const isErr=e.isError;
+          const ts=new Date(e.ts).toLocaleString('it-IT');
+          // Header row
+          const header=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'6px'}},[
+            el('span',{class:'pill '+(isErr?'pill-red':'pill-green')},isErr?'❌ ERRORE':'✅ OK'),
+            el('span',{style:{fontWeight:600,fontSize:'0.83rem'}},e.email),
+            el('span',{style:{color:'#888',fontSize:'0.77rem'}},ts),
+            el('span',{class:'pill pill-blue',style:{fontSize:'0.7rem'}},e.tipo),
+          ]);
+          const sogg=el('div',{style:{fontSize:'0.8rem',color:'#444',marginBottom:'6px'}},'📧 '+e.oggetto);
+
+          const rows=[header,sogg];
+
+          if(isErr){
+            // HTTP status from EmailJS
+            if(e.status!=null) rows.push(el('div',{style:{fontSize:'0.79rem',marginBottom:'4px'}},[
+              el('span',{style:{color:'#888'}},'HTTP status: '),
+              el('code',{style:{background:'#fdecea',color:'#c0392b',padding:'1px 5px',borderRadius:'4px',fontFamily:'monospace'}},String(e.status)),
+            ]));
+            // EmailJS text response
+            if(e.text) rows.push(el('div',{style:{fontSize:'0.79rem',marginBottom:'4px'}},[
+              el('span',{style:{color:'#888'}},'Risposta EmailJS: '),
+              el('code',{style:{background:'#fdecea',color:'#c0392b',padding:'1px 5px',borderRadius:'4px',fontFamily:'monospace'}},e.text),
+            ]));
+            // JS error message
+            if(e.message) rows.push(el('div',{style:{fontSize:'0.79rem',marginBottom:'4px'}},[
+              el('span',{style:{color:'#888'}},'Messaggio: '),
+              el('code',{style:{background:'#fdecea',color:'#c0392b',padding:'1px 5px',borderRadius:'4px',fontFamily:'monospace'}},e.message),
+            ]));
+            // Error name
+            if(e.name&&e.name!=='Error') rows.push(el('div',{style:{fontSize:'0.79rem',marginBottom:'4px'}},[
+              el('span',{style:{color:'#888'}},'Tipo errore: '),
+              el('code',{style:{background:'#f3e8ff',color:'#6b21a8',padding:'1px 5px',borderRadius:'4px',fontFamily:'monospace'}},e.name),
+            ]));
+
+            // Causa probabile
+            let causa='Causa sconosciuta';
+            if(e.status===400||e.text?.toLowerCase().includes('template'))causa='❗ Template ID non trovato o parametri mancanti nel template EmailJS';
+            else if(e.status===401||e.text?.toLowerCase().includes('api key')||e.text?.toLowerCase().includes('public key'))causa='❗ Public Key EmailJS non valida o non autorizzata';
+            else if(e.status===403)causa='❗ Servizio EmailJS non autorizzato — verifica i domini consentiti nel pannello EmailJS';
+            else if(e.status===404)causa='❗ Service ID non trovato su EmailJS';
+            else if(e.status===412||e.text?.toLowerCase().includes('quota')||e.text?.toLowerCase().includes('limit'))causa='❗ Quota email EmailJS superata (piano gratuito: 200/mese)';
+            else if(e.status===422)causa='❗ Parametri del template non corrispondono (to_email, message, subject…)';
+            else if(e.text?.toLowerCase().includes('network')||e.message?.toLowerCase().includes('network')||e.message?.toLowerCase().includes('fetch'))causa='❗ Errore di rete — nessuna connessione o EmailJS irraggiungibile';
+            else if(!e.status&&!e.text&&e.message)causa='❗ Errore JavaScript lato client (non EmailJS)';
+
+            rows.push(el('div',{style:{background:'#fff3cd',border:'1px solid #f0c36d',borderRadius:'6px',padding:'6px 10px',fontSize:'0.79rem',color:'#7a4a00',marginTop:'6px'}},causa));
+
+            // Toggle dettaglio grezzo
+            const detailPre=el('pre',{style:{display:'none',background:'#1e1e1e',color:'#d4d4d4',borderRadius:'6px',padding:'10px',fontSize:'0.72rem',overflowX:'auto',marginTop:'6px',whiteSpace:'pre-wrap',wordBreak:'break-all',maxHeight:'200px',overflowY:'auto'}},e.raw||'—');
+            const toggleBtn=el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'6px',fontSize:'0.72rem'}},
+              '🔍 Mostra oggetto errore grezzo');
+            toggleBtn.addEventListener('click',()=>{
+              const vis=detailPre.style.display==='none';
+              detailPre.style.display=vis?'block':'none';
+              toggleBtn.textContent=vis?'🔍 Nascondi':'🔍 Mostra oggetto errore grezzo';
+            });
+            rows.push(toggleBtn,detailPre);
+
+            // Parametri inviati
+            const paramsPre=el('pre',{style:{display:'none',background:'#f8f8f8',border:'1px solid #e0e0e0',borderRadius:'6px',padding:'10px',fontSize:'0.72rem',overflowX:'auto',marginTop:'6px',whiteSpace:'pre-wrap',wordBreak:'break-all',maxHeight:'180px',overflowY:'auto'}},e.params||'—');
+            const paramsBtn=el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'4px',fontSize:'0.72rem'}},'📄 Mostra parametri inviati a EmailJS');
+            paramsBtn.addEventListener('click',()=>{
+              const vis=paramsPre.style.display==='none';
+              paramsPre.style.display=vis?'block':'none';
+              paramsBtn.textContent=vis?'📄 Nascondi parametri':'📄 Mostra parametri inviati a EmailJS';
+            });
+            rows.push(paramsBtn,paramsPre);
+          } else {
+            if(e.status!=null) rows.push(el('div',{style:{fontSize:'0.79rem',color:'#1a7a4a'}},'HTTP status: '+e.status+(e.text?' — '+e.text:'')));
+          }
+
+          return el('div',{style:{background:isErr?'#fdecea':'#e8f5ee',border:'1px solid '+(isErr?'#f5a0a0':'#a8dcc0'),borderRadius:'8px',padding:'12px 14px',marginBottom:'10px'}},rows);
+        });
+
+    const clearBtn=el('button',{class:'btn btn-outline btn-sm',style:{marginLeft:'8px'},onclick:()=>{STATE.emailErrorLog=[];render();}},'🗑 Svuota log sessione');
+    content=el('div',{class:'card'},[
+      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[
+        el('div',{class:'card-title',style:{marginBottom:0}},errors.length+' eventi in questa sessione'),
+        clearBtn,
+      ]),
+      el('div',{class:'section-note',style:{marginBottom:'1rem'}},'ℹ️ Questo log è in-memory: si azzera al ricaricamento della pagina. Gli errori vengono anche salvati nel DB (colonna stato).'),
+      ...errRows,
+    ]);
+
+  } else {
+    // ── DIAGNOSTICA ──
+    const cfgRows=[
+      ['Service ID',CFG.EMAILJS_SERVICE_ID||'(vuoto)','service_XXXXXXX'],
+      ['Template ID',CFG.EMAILJS_TEMPLATE_ID||'(vuoto)','template_XXXXXXX'],
+      ['Public Key',CFG.EMAILJS_PUBLIC_KEY?CFG.EMAILJS_PUBLIC_KEY.slice(0,8)+'…':'(vuota)','AbCdEfGh…'],
+    ];
+    const cfgTable=el('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'0.82rem'}},[
+      el('thead',{},[el('tr',{},[el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Parametro'),el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Valore configurato'),el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Formato atteso')])]),
+      el('tbody',{},cfgRows.map(([k,v,fmt])=>el('tr',{},[
+        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',fontWeight:600}},k),
+        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',fontFamily:'monospace',color:v.startsWith('(')?'#c0392b':'#1a7a4a'}},v),
+        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',color:'#888',fontFamily:'monospace',fontSize:'0.75rem'}},fmt),
+      ]))),
+    ]);
+
+    const testBtn=el('button',{class:'btn btn-primary btn-sm',style:{marginTop:'1rem'}},'🧪 Invia email di test a se stessi');
+    const testLog=el('div',{style:{marginTop:'0.75rem'}});
+    testBtn.addEventListener('click',async()=>{
+      testBtn.disabled=true;
+      testBtn.textContent='Invio in corso…';
+      const myEmail=STATE.currentUser?.profilo?.email||STATE.currentUser?.email||'';
+      if(!myEmail){testLog.innerHTML='<div class="err-msg">Email utente non trovata</div>';testBtn.disabled=false;testBtn.textContent='🧪 Invia email di test';return;}
+      try{
+        const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{
+          to_email:myEmail,to_name:'Admin Test',
+          subject:'[TEST] Verifica configurazione EmailJS',
+          message:'Questo è un messaggio di test inviato dal pannello diagnostica EmailJS.\n\nSe stai leggendo questa email, la configurazione è corretta! ✅\n\nTimestamp: '+new Date().toISOString(),
+        });
+        testLog.innerHTML='';
+        testLog.appendChild(el('div',{class:'notif notif-ok'},'✅ Test inviato con successo a '+myEmail+' (HTTP '+resp.status+': '+resp.text+')'));
+        logEmailSuccess({tipo:'test',email:myEmail,oggetto:'[TEST] Verifica configurazione EmailJS',resp});
+      }catch(e){
+        testLog.innerHTML='';
+        const entry=logEmailError({tipo:'test',email:myEmail,oggetto:'[TEST]',params:{to_email:myEmail},err:e});
+        const errEl=el('div',{style:{background:'#fdecea',border:'1px solid #f5a0a0',borderRadius:'8px',padding:'12px'}},[
+          el('div',{style:{fontWeight:700,color:'#c0392b',marginBottom:'6px'}},'❌ Invio fallito'),
+          e.status?el('div',{style:{fontSize:'0.82rem',marginBottom:'4px'}},'HTTP '+e.status+(e.text?': '+e.text:'')):'',
+          e.message?el('div',{style:{fontSize:'0.82rem',color:'#555',marginBottom:'4px'}},'Messaggio: '+e.message):'',
+          el('div',{style:{fontSize:'0.8rem',color:'#7a4a00',background:'#fff3cd',borderRadius:'6px',padding:'6px 10px',marginTop:'6px'}},'💡 Vai al tab "Errori EmailJS" per il dettaglio completo e la causa probabile.'),
+        ]);
+        testLog.appendChild(errEl);
+      }
+      testBtn.disabled=false;
+      testBtn.textContent='🧪 Invia email di test a se stessi';
+    });
+
+    const checkList=[
+      ['EmailJS SDK caricato',typeof emailjs!=='undefined'?'✅ OK':'❌ NON caricato — controlla la connessione e il CDN'],
+      ['Service ID presente',CFG.EMAILJS_SERVICE_ID?'✅ '+CFG.EMAILJS_SERVICE_ID:'❌ Vuoto — imposta CFG.EMAILJS_SERVICE_ID'],
+      ['Template ID presente',CFG.EMAILJS_TEMPLATE_ID?'✅ '+CFG.EMAILJS_TEMPLATE_ID:'❌ Vuoto — imposta CFG.EMAILJS_TEMPLATE_ID'],
+      ['Public Key presente',CFG.EMAILJS_PUBLIC_KEY?'✅ (nascosta per sicurezza)':'❌ Vuota — imposta CFG.EMAILJS_PUBLIC_KEY'],
+      ['EmailJS inizializzato','✅ emailjs.init() chiamato all\'avvio'],
+    ];
+    const checkTable=el('div',{style:{marginBottom:'1rem'}},checkList.map(([label,val])=>{
+      const ok=val.startsWith('✅');
+      return el('div',{style:{display:'flex',gap:'10px',alignItems:'flex-start',padding:'5px 0',borderBottom:'1px solid #f5f5f5',fontSize:'0.83rem'}},[
+        el('span',{style:{minWidth:'220px',color:'#444',fontWeight:500}},label),
+        el('span',{style:{color:ok?'#1a7a4a':'#c0392b'}},val),
+      ]);
+    }));
+
+    content=el('div',{class:'card'},[
+      el('div',{class:'card-title'},'🔧 Diagnostica configurazione EmailJS'),
+      el('div',{class:'section-note',style:{marginBottom:'1rem'}},'Verifica che i valori in CFG corrispondano esattamente a quelli nel pannello EmailJS (emailjs.com/account).'),
+      checkTable,
+      el('div',{class:'card-title',style:{marginTop:'1rem'}},'📋 Valori CFG attuali'),
+      cfgTable,
+      el('div',{class:'card-title',style:{marginTop:'1.5rem'}},'🧪 Test invio'),
+      el('div',{style:{fontSize:'0.82rem',color:'#555',marginBottom:'0.5rem'}},'Invia una email di test al tuo indirizzo ('+( STATE.currentUser?.profilo?.email||STATE.currentUser?.email||'—')+') per verificare che tutto funzioni.'),
+      testBtn,
+      testLog,
+      el('div',{class:'card-title',style:{marginTop:'1.5rem'}},'📚 Parametri template'),
+      el('div',{style:{fontSize:'0.82rem',color:'#555',marginBottom:'0.5rem'}},'Il template EmailJS deve contenere le seguenti variabili:'),
+      el('div',{style:{fontFamily:'monospace',background:'#f8f8f8',border:'1px solid #e0e0e0',borderRadius:'6px',padding:'10px',fontSize:'0.8rem',lineHeight:'1.8'}},
+        ['{{to_email}}  — indirizzo destinatario','{{to_name}}   — nome destinatario','{{subject}}   — oggetto email','{{message}}   — corpo email'].join('\n')),
+    ]);
+  }
+
   return frag(
     el('div',{class:'page-title'},'📧 Log Notifiche Email'),
-    el('div',{class:'section-note'},'Le email sono inviate via EmailJS. Registro completo degli invii.'),
-    el('div',{class:'card'},[
-      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},STATE.emailLog.length+' notifiche'),el('button',{class:'btn btn-outline btn-sm',onclick:async()=>{await caricaTutto();}},'🔄 Aggiorna')]),
-      STATE.emailLog.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna email registrata'):frag(...STATE.emailLog.map(m=>el('div',{class:'notif notif-ok',style:{marginBottom:'6px',fontFamily:'monospace',fontSize:'0.78rem',wordBreak:'break-all'}},m)))
-    ])
+    el('div',{class:'section-note'},'Le email sono inviate via EmailJS. Usa i tab per esplorare il log, gli errori dettagliati e la diagnostica.'),
+    tabBar,
+    content
   );
 }
 
