@@ -272,9 +272,18 @@ async function dbCreaUtente(u){
   if(error){addToast('❌ Errore Auth: '+error.message,true);return false;}
   const userId=data.user?.id;
   if(!userId){addToast('❌ ID utente non ricevuto da Supabase Auth',true);return false;}
-  const{error:e2}=await sb.from('utenti').upsert({id:userId,username:u.username,nome:u.nome,cognome:u.cognome,email:u.email,ruolo:u.ruolo},{onConflict:'id'});
-  if(e2){addToast('❌ Errore profilo: '+e2.message,true);return false;}
-  return true;
+  // Supabase a volte ha un ritardo prima che l'utente auth sia propagato
+  // Proviamo fino a 5 volte con attesa crescente
+  const payload={id:userId,username:u.username,nome:u.nome,cognome:u.cognome,email:u.email,ruolo:u.ruolo};
+  let lastErr=null;
+  for(let tentativo=1;tentativo<=5;tentativo++){
+    if(tentativo>1) await new Promise(r=>setTimeout(r,tentativo*400));
+    const{error:e2}=await sb.from('utenti').upsert(payload,{onConflict:'id'});
+    if(!e2) return true;
+    lastErr=e2;
+  }
+  addToast('❌ Errore profilo: '+lastErr.message,true);
+  return false;
 }
 async function dbModificaUtente(id,updates){const{error}=await sb.from('utenti').update(updates).eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
 async function dbEliminaUtente(id){const{error}=await sb.from('utenti').delete().eq('id',id);if(error){addToast('❌ Errore: '+error.message,true);return false;}return true;}
@@ -447,15 +456,68 @@ function lezioniPerAssenza(assenza){
 }
 function docentiDisponibili(lezione,selDate){
   const giorno=getDayName(selDate);
+
+  // ── Docenti bloccati per conflitto inter-sede ──
+  // Un docente è bloccato se, nella giornata, ha lezioni in entrambe le sedi
+  // e l'ora da coprire cade "intrappolata" tra due lezioni di sedi opposte
+  // in modo che uno spostamento fisico sia impossibile.
+  // Il controllo vale in entrambe le direzioni (Betti→deVincenti e viceversa).
+  const sedeDaCoprire=lezione.sede;
+  const altraSede=sedeDaCoprire==='Betti'?'de Vincenti':'Betti';
+
+  function isBloccatoDaInteSede(docCogn){
+    const lezioniDoc=STATE.orario.filter(r=>
+      stessoGiorno(r.giorno,giorno)&&
+      r.doc_cogn.includes(docCogn)&&
+      !isDisposizioneMateria(r.mat_nome)
+    );
+    const sediPresenti=new Set(lezioniDoc.map(r=>r.sede));
+    if(sediPresenti.size<2) return false; // solo una sede → nessun problema
+
+    const oraTarget=lezione.oInizio;
+
+    // Direzione 1: lezioni dell'ALTRA sede prima e dopo → bloccato a meno che
+    //              abbia già lezioni nella sede da coprire nel mezzo
+    const oreAltra=lezioniDoc.filter(r=>r.sede===altraSede).map(r=>r.oInizio);
+    const oreSede =lezioniDoc.filter(r=>r.sede===sedeDaCoprire).map(r=>r.oInizio);
+
+    const altraPrima=oreAltra.filter(o=>o<oraTarget).sort();
+    const altraDopo =oreAltra.filter(o=>o>oraTarget).sort();
+    if(altraPrima.length>0&&altraDopo.length>0){
+      const ultPrima=altraPrima.at(-1);
+      const priDopo =altraDopo[0];
+      const haSedeMezzo=oreSede.some(o=>o>ultPrima&&o<priDopo);
+      if(!haSedeMezzo) return true;
+    }
+
+    // Direzione 2 (speculare): lezioni della SEDE DA COPRIRE prima e dopo
+    //   con lezioni dell'altra sede nel mezzo → il docente è già fisicamente
+    //   nell'altra sede in quell'intervallo
+    const sedePrima=oreSede.filter(o=>o<oraTarget).sort();
+    const sedeDopo =oreSede.filter(o=>o>oraTarget).sort();
+    if(sedePrima.length>0&&sedeDopo.length>0){
+      const ultPrima=sedePrima.at(-1);
+      const priDopo =sedeDopo[0];
+      const haAltraMezzo=oreAltra.some(o=>o>ultPrima&&o<priDopo);
+      if(haAltraMezzo) return true;
+    }
+
+    return false;
+  }
+
   const docInDisposizione=new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio).flatMap(r=>r.doc_cogn));
   const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
   const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
   STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
   lezione.doc_cogn.forEach(d=>docentiOccupati.add(d));
   docentiOccupati.forEach(d=>docInDisposizione.delete(d));
+
+  // Rimuovi dai disponibili chi è bloccato inter-sede
+  [...docInDisposizione].forEach(d=>{if(isBloccatoDaInteSede(d))docInDisposizione.delete(d);});
+
   const disposizioni=[...docInDisposizione];
   const tutti=new Set([...docentiOccupati,...docInDisposizione]);
-  const filter=arr=>[...new Set(arr)].filter(c=>!tutti.has(c));
+  const filter=arr=>[...new Set(arr)].filter(c=>!tutti.has(c)&&!isBloccatoDaInteSede(c));
   const stesseClassi=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe===lezione.classe&&!isDisposizioneMateria(r.mat_nome)&&!r.doc_cogn.every(d=>lezione.doc_cogn.includes(d))).flatMap(r=>r.doc_cogn));
   const stessaMat=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.mat_nome===lezione.mat_nome&&r.oInizio!==lezione.oInizio&&!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn));
   const tuttiDocenti=[...new Set(STATE.orario.filter(r=>!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn))];
@@ -1017,7 +1079,7 @@ function renderUtenti(){
     el('div',{class:'page-title'},'👥 Gestione Utenti'),
     el('div',{class:'card'},[
       el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Utenti del sistema'),el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriModaleUtente(null)},'+ Nuovo utente')]),
-      el('div',{class:'section-note'},'ℹ️ Il nuovo utente riceverà email di conferma da Supabase. In Supabase → Authentication → Settings puoi disabilitare la conferma email per accessi immediati.'),
+      el('div',{class:'section-note'},'⚠️ Per evitare errori di creazione utente, disabilita la conferma email in Supabase: Authentication → Configuration → Email → disattiva "Enable email confirmations". Con la conferma attiva l\'utente non può accedere finché non clicca il link e il profilo potrebbe non salvarsi correttamente.'),
       el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Nome'),el('th',{},'Username'),el('th',{},'Email'),el('th',{},'Ruolo'),el('th',{},'Azioni')])]),tbody])])
     ])
   );
