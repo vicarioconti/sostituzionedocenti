@@ -173,8 +173,8 @@ let STATE={
   _emailTab:'log'
 };
 
-// Logo persistito in localStorage (solo immagine piccola, nessun dato sensibile)
-try{const l=localStorage.getItem('scuola_logo');if(l)STATE.logoUrl=l;}catch(e){}
+// Logo caricato da GitHub
+STATE.logoUrl='https://raw.githubusercontent.com/vicarioconti/sostituzionedocenti/main/logo.png';
 
 // ================================================================
 // UTILS
@@ -491,30 +491,8 @@ function renderTopbar(){
   const prof=STATE.currentUser.profilo;
   const navItems=isAdmin?[['dashboard','📊 Dashboard'],['assenze','📋 Assenze'],['sostituzioni','🔄 Sostituzioni'],['orario','📅 Orario'],['utenti','👥 Utenti'],['email','📧 Email Log']]:[['sostituzioni','🔄 Sostituzioni']];
 
-  // Logo: cliccabile solo per admin
-  let logoAreaEl;
-  if(isAdmin){
-    // Admin: logo cliccabile per upload
-    const fileInpTop=el('input',{type:'file',accept:'image/*',class:'hidden'});
-    fileInpTop.addEventListener('change',function(e){
-      const f=e.target.files[0];if(!f)return;
-      const reader=new FileReader();
-      reader.onload=function(ev){
-        try{localStorage.setItem('scuola_logo',ev.target.result);}catch(err){}
-        STATE.logoUrl=ev.target.result;
-        addToast('✅ Logo aggiornato');
-        render();
-      };
-      reader.readAsDataURL(f);
-    });
-    const imgEl=STATE.logoUrl?el('img',{src:STATE.logoUrl,alt:'logo',style:{height:'30px',width:'30px',objectFit:'contain',borderRadius:'4px'}}):'🏫 ';
-    const clickArea=el('div',{class:'logo-admin-upload',title:'Clicca per cambiare il logo (solo admin)'},[imgEl]);
-    clickArea.addEventListener('click',()=>fileInpTop.click());
-    logoAreaEl=el('span',{},[clickArea,fileInpTop]);
-  } else {
-    // Docente: logo statico, non cliccabile
-    logoAreaEl=STATE.logoUrl?el('img',{src:STATE.logoUrl,alt:'logo',style:{height:'30px',width:'30px',objectFit:'contain',borderRadius:'4px'}}):'🏫 ';
-  }
+  // Logo da GitHub — statico per tutti
+  const logoAreaEl=STATE.logoUrl?el('img',{src:STATE.logoUrl,alt:'logo',style:{height:'30px',width:'30px',objectFit:'contain',borderRadius:'4px'}}):'🏫 ';
 
   return el('div',{class:'topbar'},[
     el('div',{class:'logo'},[logoAreaEl,'Sostituzioni ',el('span',{},'Betti / de Vincenti')]),
