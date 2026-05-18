@@ -465,7 +465,7 @@ function renderLogin(){
 
   card.appendChild(el('div',{class:'login-logo'},[
     logoWrap,
-    el('div',{class:'school-name'},'Gestione Sostituzioni'),
+    el('div',{class:'school-name'},'Gestione Sostituzioni Docenti'),
     el('div',{class:'subtitle'},'I.T.T. Ettore Conti — Betti / de Vincenti')
   ]));
 
@@ -479,7 +479,7 @@ function renderLogin(){
   inpE.addEventListener('keydown',e=>e.key==='Enter'&&login());
   inpP.addEventListener('keydown',e=>e.key==='Enter'&&login());
   card.appendChild(el('button',{class:'btn btn-primary btn-full',onclick:login},'Accedi'));
-  card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione · Dati in cloud Supabase'));
+  card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione · Creato da Giorgio Costantino'));
   return el('div',{class:'login-wrap'},[card]);
 }
 
