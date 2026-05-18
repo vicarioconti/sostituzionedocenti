@@ -418,7 +418,13 @@ function render(){
 // ================================================================
 function renderLogin(){
   const card=el('div',{class:'login-card'});
-  card.appendChild(el('div',{class:'login-logo'},[el('div',{class:'icon-wrap'},'🏫'),el('div',{class:'school-name'},'Gestione Sostituzioni'),el('div',{class:'subtitle'},'I.T.T. — Ettore Conti')]));
+  card.appendChild(el('div',{class:'login-logo'},[
+  el('div',{class:'icon-wrap'},
+    el('img',{src:'logo.png', alt:'Logo scuola', style:{width:'44px',height:'44px',objectFit:'contain',borderRadius:'6px'}})
+  ),
+  el('div',{class:'school-name'},'Gestione Sostituzioni'),
+  el('div',{class:'subtitle'},'I.T.T. — Ettore Conti')
+]));
   const errDiv=el('div',{class:'err-msg hidden'});
   card.appendChild(errDiv);
   const inpE=el('input',{type:'email',placeholder:'email istituzionale',autocomplete:'username'});
