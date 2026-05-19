@@ -47,7 +47,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#111;m
 .nav-btn:hover,.nav-btn.active{background:rgba(255,255,255,0.15);color:#fff}
 .topbar-right{display:flex;align-items:center;gap:8px;font-size:0.83rem;color:rgba(255,255,255,0.8)}
 .badge-ruolo{padding:2px 8px;border-radius:12px;font-size:0.72rem}
-.badge-admin{background:#e74c3c}.badge-docente{background:#27ae60}
+.badge-admin{background:#e74c3c}.badge-docente{background:#27ae60}.badge-docenti{background:#8e44ad}
 .main{flex:1;padding:1.5rem;max-width:1400px;margin:0 auto;width:100%}
 .page-title{font-size:1.25rem;font-weight:700;color:#1a3a6e;margin-bottom:1.25rem;display:flex;align-items:center;gap:8px}
 .card{background:#fff;border-radius:12px;border:0.5px solid rgba(0,0,0,0.1);padding:1.25rem;margin-bottom:1rem}
@@ -385,8 +385,8 @@ async function doLogin(email,pass){
   }
   const{data:prof}=await sb.from('utenti').select('*').eq('id',data.user.id).single();
   STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
+  if(STATE.ruolo==='docenti') STATE.page='bacheca';
   await caricaTutto();
-}
 async function doLogout(){await sb.auth.signOut();STATE.currentUser=null;STATE.ruolo=null;Object.assign(STATE,{orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[]});render();}
 
 // ================================================================
@@ -438,6 +438,7 @@ async function initAuth(){
     if(data.session.user?.user_metadata?.must_change_password===true)STATE._primoAccesso=true;
     const{data:prof}=await sb.from('utenti').select('*').eq('id',data.session.user.id).single();
     STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
+    if(STATE.ruolo==='docenti') STATE.page='bacheca';
     await caricaTutto();
   } else render();
 }
@@ -602,7 +603,7 @@ function renderLogin(){
 function renderTopbar(){
   const isAdmin=STATE.ruolo==='admin';
   const prof=STATE.currentUser.profilo;
-  const navItems=isAdmin?[['dashboard','📊 Dashboard'],['assenze','📋 Assenze'],['sostituzioni','🔄 Sostituzioni'],['orario','📅 Orario'],['utenti','👥 Utenti'],['email','📧 Email Log']]:[['sostituzioni','🔄 Sostituzioni']];
+  const navItems=isAdmin?[['dashboard','📊 Dashboard'],['assenze','📋 Assenze'],['sostituzioni','🔄 Sostituzioni'],['orario','📅 Orario'],['utenti','👥 Utenti'],['email','📧 Email Log']]:STATE.ruolo==='docenti'?[['bacheca','📋 Bacheca Sostituzioni']]:[['sostituzioni','🔄 Le mie sostituzioni']];
 
   // Logo da GitHub — statico per tutti
   const logoAreaEl=STATE.logoUrl?el('img',{src:STATE.logoUrl,alt:'logo',style:{height:'30px',width:'30px',objectFit:'contain',borderRadius:'4px'}}):'🏫 ';
@@ -612,7 +613,7 @@ function renderTopbar(){
     el('nav',{},navItems.map(([pg,lbl])=>el('button',{class:'nav-btn'+(STATE.page===pg?' active':''),onclick:()=>{STATE.page=pg;render();}},lbl))),
     el('div',{class:'topbar-right'},[
       '👤 '+(prof?prof.cognome+' '+prof.nome:STATE.currentUser.email),
-      el('span',{class:'badge-ruolo badge-'+(isAdmin?'admin':'docente')},isAdmin?'Admin':'Docente'),
+      el('span',{class:'badge-ruolo badge-'+(isAdmin?'admin':STATE.ruolo==='docenti'?'docenti':'docente')},isAdmin?'Admin':STATE.ruolo==='docenti'?'Bacheca':'Docente'),
       el('button',{class:'btn btn-outline btn-sm',onclick:()=>apriModaleCambioPassword(false)},'🔒 Password'),
       el('button',{class:'btn btn-outline btn-sm',onclick:doLogout},'Esci')
     ])
@@ -624,17 +625,21 @@ function renderTopbar(){
 // ================================================================
 function renderApp(){
   const isAdmin=STATE.ruolo==='admin';
+  const isDocenti=STATE.ruolo==='docenti';
   // Primo accesso: forza cambio password (solo docenti, o chiunque con password predefinita)
   if(STATE._primoAccesso && !STATE.modal){
     // Apri modale in modo non-bloccante al prossimo tick
     setTimeout(()=>apriModaleCambioPassword(true),0);
   }
+  // Se ruolo docenti e page non è bacheca, forza bacheca
+  if(isDocenti && STATE.page!=='bacheca') STATE.page='bacheca';
   return frag(
     renderTopbar(),el('div',{class:'toast-wrap'}),
     el('div',{class:'main'},[
       STATE.page==='dashboard'&&isAdmin?renderDashboard():null,
       STATE.page==='assenze'&&isAdmin?renderAssenze():null,
       STATE.page==='sostituzioni'?renderSostituzioni():null,
+      STATE.page==='bacheca'?renderBachecaSostituzioni():null,
       STATE.page==='orario'&&isAdmin?renderOrario():null,
       STATE.page==='utenti'&&isAdmin?renderUtenti():null,
       STATE.page==='email'&&isAdmin?renderEmail():null,
@@ -893,19 +898,67 @@ function renderSostituzioni(){
   const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
     '🗓 Giorno: ',el('strong',{},giornoCalc),' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno))
   ]):null;
-  const cards=assenzeGiorno.length===0?[el('div',{class:'card'},[el('p',{style:{color:'#999',fontSize:'0.9rem'}},'✅ Nessuna assenza registrata per '+formatDate(STATE.selDate))])]:assenzeGiorno.map(a=>renderCardAssenza(a,isAdmin));
-  let mySubst=null;
-  if(!isAdmin){
-    const mie=STATE.sostituzioni.filter(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId&&x.date===STATE.selDate);return a&&s.docCognSostituto===STATE.currentUser.profilo?.cognome;});
-    const righe=mie.map(s=>{const a=STATE.assenze.find(x=>x.id===s.assenzaId);if(!a)return null;const lezioni=lezioniPerAssenza(a);const idx=parseInt((s.lessonKey||'').split('_')[1])||0;const l=lezioni[idx];if(!l)return null;return el('div',{class:'assenza-row'},[el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},l.oInizio+' — '+l.mat_nome+' in '+l.classe+(l.aula?' ('+l.aula+')':'')),el('div',{class:'assenza-det'},'Sostituisci Prof. '+a.docCogn+' — ',el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede))]),el('span',{class:'pill pill-green'},'✓ Confermata')]);}).filter(Boolean);
-    mySubst=el('div',{class:'card'},[el('div',{class:'card-title'},'📌 Le mie sostituzioni'),righe.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna sostituzione assegnata a te'):frag(...righe)]);
+
+  // ── VISTA ADMIN: tutto come prima ──
+  if(isAdmin){
+    const cards=assenzeGiorno.length===0?[el('div',{class:'card'},[el('p',{style:{color:'#999',fontSize:'0.9rem'}},'✅ Nessuna assenza registrata per '+formatDate(STATE.selDate))])]:assenzeGiorno.map(a=>renderCardAssenza(a,true));
+    const f=frag(el('div',{class:'page-title'},'🔄 Sostituzioni — '+formatDate(STATE.selDate)));
+    f.appendChild(renderDateNav());
+    if(debugBar)f.appendChild(debugBar);
+    cards.forEach(c=>f.appendChild(c));
+    return f;
   }
-  const f=frag(el('div',{class:'page-title'},'🔄 Sostituzioni — '+formatDate(STATE.selDate)));
-  if(isAdmin)f.appendChild(renderDateNav());
-  if(debugBar)f.appendChild(debugBar);
-  if(!isAdmin)f.appendChild(el('div',{class:'section-note'},'ℹ️ Visualizzazione sola lettura.'));
-  cards.forEach(c=>f.appendChild(c));
-  if(mySubst)f.appendChild(mySubst);
+
+  // ── VISTA DOCENTE SINGOLO: solo sua assenza e sue sostituzioni ──
+  const myCogn=STATE.currentUser.profilo?.cognome||'';
+
+  // La mia eventuale assenza oggi
+  const miaAssenza=STATE.assenze.find(a=>a.date===STATE.selDate&&a.docCogn===myCogn);
+
+  // Le sostituzioni assegnate a me oggi
+  const mieSostituzioni=STATE.sostituzioni.filter(s=>{
+    const a=STATE.assenze.find(x=>x.id===s.assenzaId&&x.date===STATE.selDate);
+    return a&&s.docCognSostituto===myCogn;
+  });
+
+  const f=frag(el('div',{class:'page-title'},'🔄 La mia giornata — '+formatDate(STATE.selDate)));
+
+  // Blocco assenza personale
+  const assenzaCard=el('div',{class:'card'},[
+    el('div',{class:'card-title'},'👤 La mia assenza oggi'),
+    miaAssenza
+      ? assenzaRow(miaAssenza,false)
+      : el('p',{style:{color:'#1a7a4a',fontSize:'0.88rem'}},'✅ Nessuna assenza registrata per te oggi')
+  ]);
+  f.appendChild(assenzaCard);
+
+  // Blocco sostituzioni assegnate
+  const righe=mieSostituzioni.map(s=>{
+    const a=STATE.assenze.find(x=>x.id===s.assenzaId);
+    if(!a)return null;
+    const lezioni=lezioniPerAssenza(a);
+    const idx=parseInt((s.lessonKey||'').split('_')[1])||0;
+    const l=lezioni[idx];
+    if(!l)return null;
+    return el('div',{class:'assenza-row'},[
+      el('div',{style:{width:'36px',height:'36px',borderRadius:'50%',background:'#e8f5ee',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}},'📋'),
+      el('div',{class:'assenza-info'},[
+        el('div',{class:'assenza-nome'},l.oInizio+' — '+l.mat_nome+(l.classe?' · '+l.classe:'')+(l.aula?' ('+l.aula+')':'')),
+        el('div',{class:'assenza-det'},'Sostituisci: Prof. '+a.docCogn+' · ',el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede))
+      ]),
+      s.isDisposizione
+        ? el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 8px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione')
+        : el('span',{class:'pill pill-green'},'✓ Assegnata')
+    ]);
+  }).filter(Boolean);
+
+  const sostCard=el('div',{class:'card'},[
+    el('div',{class:'card-title'},'📌 Le mie sostituzioni oggi'),
+    righe.length===0
+      ? el('p',{style:{color:'#999',fontSize:'0.85rem'}},'Nessuna sostituzione assegnata a te per oggi')
+      : frag(...righe)
+  ]);
+  f.appendChild(sostCard);
   return f;
 }
 
@@ -932,6 +985,105 @@ function renderCardAssenza(a,isAdmin){
     });
   }
   return el('div',{class:'card'},[el('div',{class:'card-title'},['👤 Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')+' ',el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Assente tutto il giorno':'Permesso ora '+a.ora)]),el('div',{class:'tbl-wrap'},[el('table',{},[thead,tbody])])]);
+}
+
+// ================================================================
+// BACHECA SOSTITUZIONI — ruolo "docenti" (sola lettura, tutte le sostituzioni del giorno)
+// ================================================================
+function renderBachecaSostituzioni(){
+  const oggi=todayStr();
+  const giornoCalc=getDayName(oggi);
+  const assenzeOggi=STATE.assenze.filter(a=>a.date===oggi);
+
+  // Raccoglie tutte le righe di sostituzione per oggi
+  const righe=[];
+  assenzeOggi.forEach(a=>{
+    const lezioni=lezioniPerAssenza(a);
+    lezioni.forEach((l,i)=>{
+      const key=a.id+'_'+i;
+      const sost=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key);
+      righe.push({assenza:a,lezione:l,sost,key});
+    });
+  });
+
+  // Ordina per ora
+  righe.sort((a,b)=>(a.lezione.oInizio||'').localeCompare(b.lezione.oInizio||''));
+
+  const tbody=el('tbody',{});
+  if(righe.length===0){
+    tbody.appendChild(el('tr',{},[el('td',{colspan:'7',style:{color:'#999',padding:'1.5rem',textAlign:'center',fontSize:'0.9rem'}},'✅ Nessuna sostituzione prevista per oggi')]));
+  } else {
+    righe.forEach(({assenza:a,lezione:l,sost})=>{
+      const isDisp=sost&&sost.isDisposizione;
+      const tr=el('tr',{style:isDisp?{background:'#f0fdf4'}:{}});
+      tr.appendChild(el('td',{},[el('strong',{style:{fontSize:'0.92rem'}},l.oInizio)]));
+      tr.appendChild(el('td',{},l.mat_nome||'—'));
+      tr.appendChild(el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]));
+      tr.appendChild(el('td',{},l.classe||'—'));
+      tr.appendChild(el('td',{},l.aula||'—'));
+      tr.appendChild(el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]));
+      if(sost){
+        tr.appendChild(el('td',{},[
+          el('strong',{},sost.docCognSostituto),
+          ' ',
+          isDisp
+            ? el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ Disposizione')
+            : el('span',{class:'pill pill-green'},'✓')
+        ]));
+      } else {
+        tr.appendChild(el('td',{},[el('span',{class:'pill pill-gray'},'Non assegnato')]));
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Ultimo aggiornamento + pulsante refresh
+  let _bachecaTimer=null;
+  function scheduleRefresh(){
+    if(_bachecaTimer)clearTimeout(_bachecaTimer);
+    _bachecaTimer=setTimeout(async()=>{await caricaTutto();},60000);
+  }
+  scheduleRefresh();
+
+  const lastUpdate=el('span',{style:{fontSize:'0.78rem',color:'#888'}},'Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
+  const refreshBtn=el('button',{class:'btn btn-outline btn-sm'},['🔄 Aggiorna']);
+  refreshBtn.addEventListener('click',async()=>{
+    refreshBtn.disabled=true;
+    refreshBtn.textContent='Caricamento…';
+    await caricaTutto();
+  });
+
+  // Statistiche rapide
+  const nAssegnate=righe.filter(r=>r.sost).length;
+  const nTotali=righe.length;
+
+  const statBar=el('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',marginBottom:'1rem'}}, [
+    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(assenzeOggi.length)),el('div',{class:'stat-lbl'},'Assenti oggi')]),
+    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(nTotali)),el('div',{class:'stat-lbl'},'Ore da coprire')]),
+    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem',color:nAssegnate===nTotali&&nTotali>0?'#1a7a4a':'#1a3a6e'}},String(nAssegnate)),el('div',{class:'stat-lbl'},'Assegnate')]),
+  ]);
+
+  const tableCard=el('div',{class:'card'},[
+    el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:'8px'}},[
+      el('div',{class:'card-title',style:{marginBottom:0}},'📋 Sostituzioni di oggi — '+formatDate(oggi)),
+      el('div',{style:{display:'flex',gap:'8px',alignItems:'center'}},[lastUpdate,refreshBtn])
+    ]),
+    el('div',{class:'tbl-wrap',style:{maxHeight:'calc(100vh - 320px)',overflowY:'auto'}},[
+      el('table',{},[
+        el('thead',{style:{position:'sticky',top:0,zIndex:10}},[
+          el('tr',{},['Ora','Materia','Docente assente','Classe','Aula','Sede','Sostituto'].map(h=>el('th',{},h)))
+        ]),
+        tbody
+      ])
+    ])
+  ]);
+
+  return frag(
+    el('div',{class:'page-title'},'📋 Bacheca Sostituzioni'),
+    el('div',{class:'notif notif-info',style:{marginBottom:'1rem'}},'👁 Vista sola lettura · Si aggiorna automaticamente ogni minuto · '+giornoCalc),
+    statBar,
+    tableCard
+  );
 }
 
 // DROPDOWN
@@ -1073,7 +1225,7 @@ function renderUtenti(){
       const ok=await dbEliminaUtente(u.id);
       if(ok){addToast('✅ Utente eliminato');await caricaTutto();}
     });
-    tbody.appendChild(el('tr',{},[el('td',{},[el('strong',{},u.cognome+' '+u.nome)]),el('td',{},[el('code',{},u.username||'—')]),el('td',{style:{fontSize:'0.82rem',color:'#555'}},u.email),el('td',{},[el('span',{class:'pill '+(u.ruolo==='admin'?'pill-blue':'pill-green')},u.ruolo==='admin'?'Admin':'Docente')]),el('td',{},[editBtn,delBtn])]));
+    tbody.appendChild(el('tr',{},[el('td',{},[el('strong',{},u.cognome+' '+u.nome)]),el('td',{},[el('code',{},u.username||'—')]),el('td',{style:{fontSize:'0.82rem',color:'#555'}},u.email),el('td',{},[el('span',{class:'pill '+(u.ruolo==='admin'?'pill-blue':u.ruolo==='docenti'?'pill-purple':'pill-green')},u.ruolo==='admin'?'Admin':u.ruolo==='docenti'?'Bacheca':'Docente')]),el('td',{},[editBtn,delBtn])]));
   });
   return frag(
     el('div',{class:'page-title'},'👥 Gestione Utenti'),
@@ -1096,7 +1248,7 @@ function apriModaleUtente(utente){
   if(!isEdit)inpPass.value=DEFAULT_PASSWORD;
   const inpEmail=el('input',{type:'email',value:utente?utente.email:'',placeholder:'nome@ettoreconti.edu.it'});
   const selRuolo=el('select',{});
-  [['docente','Docente'],['admin','Amministratore']].forEach(([v,l])=>{const o=el('option',{value:v},l);if(utente&&utente.ruolo===v)o.selected=true;selRuolo.appendChild(o);});
+  [['docente','Docente'],['docenti','Bacheca Docenti (sola lettura)'],['admin','Amministratore']].forEach(([v,l])=>{const o=el('option',{value:v},l);if(utente&&utente.ruolo===v)o.selected=true;selRuolo.appendChild(o);});
   async function submit(){
     const nome=inpNome.value.trim(),cogn=inpCogn.value.trim(),user=isEdit?utente.username:inpUser.value.trim();
     const pass=inpPass.value,email=inpEmail.value.trim(),ruolo=selRuolo.value;
