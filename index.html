@@ -387,7 +387,8 @@ async function doLogin(email,pass){
   STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
   if(STATE.ruolo==='docenti') STATE.page='bacheca';
   await caricaTutto();
-async function doLogout(){await sb.auth.signOut();STATE.currentUser=null;STATE.ruolo=null;Object.assign(STATE,{orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[]});render();}
+}
+async function doLogout(){await sb.auth.signOut();STATE.currentUser=null;STATE.ruolo=null;if(window._bachecaTimer){clearTimeout(window._bachecaTimer);window._bachecaTimer=null;}Object.assign(STATE,{orario:[],assenze:[],sostituzioni:[],utenti:[],emailLog:[]});render();}
 
 // ================================================================
 // CAMBIO PASSWORD
@@ -1037,13 +1038,9 @@ function renderBachecaSostituzioni(){
     });
   }
 
-  // Ultimo aggiornamento + pulsante refresh
-  let _bachecaTimer=null;
-  function scheduleRefresh(){
-    if(_bachecaTimer)clearTimeout(_bachecaTimer);
-    _bachecaTimer=setTimeout(async()=>{await caricaTutto();},60000);
-  }
-  scheduleRefresh();
+  // Aggiornamento automatico ogni 60 secondi (timer globale per evitare duplicati)
+  if(window._bachecaTimer) clearTimeout(window._bachecaTimer);
+  window._bachecaTimer=setTimeout(async()=>{await caricaTutto();},60000);
 
   const lastUpdate=el('span',{style:{fontSize:'0.78rem',color:'#888'}},'Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
   const refreshBtn=el('button',{class:'btn btn-outline btn-sm'},['🔄 Aggiorna']);
