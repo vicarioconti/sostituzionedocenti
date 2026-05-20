@@ -1103,16 +1103,13 @@ function renderSostituzioni(){
   const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate);
   const giornoCalc=getDayName(STATE.selDate);
   const giorniNelOrario=[...new Set(STATE.orario.map(r=>r.giorno))];
-  const giorniRaw=[...new Set(STATE.orario.map(r=>JSON.stringify(r.giorno)))]; // valori raw per debug
   const lezioniGiorno=STATE.orario.filter(r=>stessoGiorno(r.giorno,giornoCalc)).length;
+  // Conteggio per giorno per diagnostica rapida
+  const conteggioPerGiorno=GIORNI.map(g=>{const n=STATE.orario.filter(r=>r.giorno===g).length;return g.substring(0,3)+': '+n;}).join(' | ');
   const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
     '🗓 Giorno selezionato: ',el('strong',{},giornoCalc),
-    ' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),
     ' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno)),
-    el('details',{style:{display:'inline',marginLeft:'8px'}},[
-      el('summary',{style:{cursor:'pointer',fontSize:'0.72rem',color:'#888'}},'valori raw DB'),
-      el('code',{style:{fontSize:'0.68rem',display:'block',marginTop:'4px',whiteSpace:'pre-wrap',wordBreak:'break-all'}},giorniRaw.join('\n'))
-    ])
+    el('span',{style:{marginLeft:'8px',fontSize:'0.72rem',color:'#555',fontFamily:'monospace'}},conteggioPerGiorno)
   ]):null;
 
   // ── VISTA ADMIN: tutto come prima ──
