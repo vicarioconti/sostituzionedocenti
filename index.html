@@ -1486,7 +1486,23 @@ function renderOrario(){
     const textarea=el('textarea',{rows:'12',style:{fontFamily:'monospace',fontSize:'0.78rem',resize:'vertical',width:'100%',border:'1px solid rgba(0,0,0,0.15)',borderRadius:'8px',padding:'0.55rem 0.75rem'}});
     textarea.placeholder=CSV_ESEMPIO;
     const inputFile=el('input',{type:'file',accept:'.csv,.txt',class:'hidden'});
-    inputFile.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{textarea.value=ev.target.result;};r.readAsText(f,'UTF-8');});
+    inputFile.addEventListener('change',e=>{
+      const f=e.target.files[0];if(!f)return;
+      // Prova UTF-8; se trova caratteri corrotti (es. venerdì in Latin-1), rilegge come ISO-8859-1
+      const r=new FileReader();
+      r.onload=ev=>{
+        const txt=ev.target.result;
+        // Heuristic: se ci sono caratteri replacement (U+FFFD) o sequenze Latin-1 tipiche italiane
+        if(txt.includes('\uFFFD')||/[\x80-\x9f]/.test(txt)){
+          const r2=new FileReader();
+          r2.onload=ev2=>{textarea.value=ev2.target.result;};
+          r2.readAsText(f,'ISO-8859-1');
+        } else {
+          textarea.value=txt;
+        }
+      };
+      r.readAsText(f,'UTF-8');
+    });
     const uploadArea=el('div',{class:'upload-area'},[el('div',{style:{fontSize:'2rem'}},'📁'),el('div',{style:{fontWeight:600,marginTop:'0.5rem'}},'Clicca per selezionare un file CSV'),el('p',{style:{color:'#888',marginTop:'0.4rem',fontSize:'0.83rem'}},'oppure incolla il testo qui sotto')]);
     uploadArea.addEventListener('click',()=>inputFile.click());
     content=el('div',{class:'card'},[
