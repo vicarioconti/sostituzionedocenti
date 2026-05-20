@@ -66,7 +66,7 @@ tr:hover td{background:#fafbff}
 .pill{padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600}
 .pill-red{background:#fdecea;color:#c0392b}.pill-green{background:#e8f5ee;color:#1a7a4a}
 .pill-blue{background:#e8f0fb;color:#1a56a0}.pill-orange{background:#fef0e0;color:#c55a00}
-.pill-gray{background:#f0f0f0;color:#555}.pill-purple{background:#f3e8ff;color:#6b21a8}
+.pill-gray{background:#f0f0f0;color:#555}.pill-purple{background:#f3e8ff;color:#6b21a8}.pill-teal{background:#e0f7f4;color:#0f766e}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 @media(max-width:700px){.grid2{grid-template-columns:1fr}}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.25rem}
@@ -233,7 +233,7 @@ async function caricaTutto(){
     sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
   ]);
   if(ro.data)STATE.orario=ro.data.map(r=>({...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio}));
-  if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo}));
+  if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||''}));
   if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
   if(ut.data)STATE.utenti=ut.data;
   if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
@@ -244,7 +244,14 @@ async function caricaTutto(){
 // SUPABASE — SCRITTURA
 // ================================================================
 async function dbInserisciAssenza(a){
-  const {data,error}=await sb.from('assenze').insert({doc_cogn:a.docCogn,doc_nome:a.docNome,tipo:a.tipo,ora:a.ora||null,data:a.date,inserito_da:STATE.currentUser.id}).select().single();
+  const payload={doc_cogn:a.docCogn,doc_nome:a.docNome,tipo:a.tipo,ora:a.ora||null,data:a.date,inserito_da:STATE.currentUser.id};
+  // Campi extra per uscite didattiche
+  if(a.tipo==='uscita'){
+    payload.classe_uscita=a.classeUscita||null;
+    payload.ore_uscita=a.oreUscita||null; // JSON array di orari, null = tutto il giorno
+    payload.accompagnatori=a.accompagnatori||null; // stringa libera
+  }
+  const {data,error}=await sb.from('assenze').insert(payload).select().single();
   if(error){addToast('❌ Errore DB: '+error.message,true);return null;}
   return data;
 }
@@ -449,6 +456,7 @@ async function initAuth(){
 // ================================================================
 function lezioniPerAssenza(assenza){
   const giorno=getDayName(assenza.date);
+  if(assenza.tipo==='uscita') return []; // nessuna lezione da coprire per l'uscita stessa
   return STATE.orario.filter(r=>{
     if(!r.doc_cogn.includes(assenza.docCogn))return false;
     if(assenza.tipo==='giorno')return stessoGiorno(r.giorno,giorno);
@@ -508,6 +516,25 @@ function docentiDisponibili(lezione,selDate){
   }
 
   const docInDisposizione=new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio).flatMap(r=>r.doc_cogn));
+
+  // ── Docenti liberati da uscite didattiche ──
+  // Se la loro classe è in uscita (tutto il giorno o per questa ora specifica),
+  // i docenti che avrebbero quella classe in questa ora diventano a disposizione.
+  STATE.assenze.filter(a=>{
+    if(a.date!==selDate||a.tipo!=='uscita')return false;
+    if(!a.classeUscita)return false;
+    if(a.oreUscita&&a.oreUscita.length>0) return a.oreUscita.includes(lezione.oInizio);
+    return true; // tutto il giorno
+  }).forEach(uscita=>{
+    const docLiberati=STATE.orario.filter(r=>
+      stessoGiorno(r.giorno,giorno)&&
+      r.oInizio===lezione.oInizio&&
+      r.classe&&r.classe.toLowerCase().trim()===uscita.classeUscita.toLowerCase().trim()&&
+      !isDisposizioneMateria(r.mat_nome)
+    ).flatMap(r=>r.doc_cogn);
+    docLiberati.forEach(d=>docInDisposizione.add(d));
+  });
+
   const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
   const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
   STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
@@ -685,14 +712,27 @@ function statCard(val,lbl){return el('div',{class:'stat-card'},[el('div',{class:
 // ================================================================
 function assenzaRow(a,showDelete){
   const tipo=a.tipo==='giorno';
+  const isUscita=a.tipo==='uscita';
+  let detTipo, pillClass, pillLabel, icon;
+  if(isUscita){
+    icon='🚌';pillClass='pill-teal';pillLabel='Uscita didattica';
+    const oreLabel=a.oreUscita&&a.oreUscita.length>0?('Ore: '+a.oreUscita.join(', ')):'Tutto il giorno';
+    detTipo=formatDate(a.date)+' — Classe '+a.classeUscita+' — '+oreLabel+(a.accompagnatori?' | Accomp: '+a.accompagnatori:'');
+  } else {
+    icon='👤';pillClass=tipo?'pill-red':'pill-orange';pillLabel=tipo?'Tutto giorno':'Permesso';
+    detTipo=formatDate(a.date)+' — '+(tipo?'Tutto il giorno':'Permesso ora '+a.ora);
+  }
   const row=el('div',{class:'assenza-row'},[
-    el('div',{style:{width:'36px',height:'36px',borderRadius:'50%',background:'#f0f4fb',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}},'👤'),
-    el('div',{class:'assenza-info'},[el('div',{class:'assenza-nome'},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')),el('div',{class:'assenza-det'},formatDate(a.date)+' — '+(tipo?'Tutto il giorno':'Permesso ora '+a.ora))]),
-    el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso')
+    el('div',{style:{width:'36px',height:'36px',borderRadius:'50%',background:isUscita?'#e0f7f4':'#f0f4fb',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}},icon),
+    el('div',{class:'assenza-info'},[
+      el('div',{class:'assenza-nome'},isUscita?'Classe '+a.classeUscita:'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:'')),
+      el('div',{class:'assenza-det'},isUscita?detTipo:detTipo)
+    ]),
+    el('span',{class:'pill '+pillClass},pillLabel)
   ]);
   if(showDelete){
     const btn=el('button',{class:'btn btn-danger btn-sm'},'🗑 Elimina');
-    btn.addEventListener('click',async()=>{if(!confirm('Eliminare questa assenza?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}});
+    btn.addEventListener('click',async()=>{if(!confirm('Eliminare questa voce?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Eliminata');await caricaTutto();}});
     row.appendChild(btn);
   }
   return row;
@@ -708,13 +748,25 @@ function renderAssenze(){
   if(tutteRows.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna assenza inserita')]));
   tutteRows.forEach(a=>{
     const tipo=a.tipo==='giorno';
+    const isUscita=a.tipo==='uscita';
     const delBtn=el('button',{class:'btn btn-danger btn-sm'},'🗑');
-    delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Assenza eliminata');await caricaTutto();}});
-    tbody.appendChild(el('tr',{},[el('td',{},formatDate(a.date)),el('td',{},[el('strong',{},'Prof. '+a.docCogn),(a.docNome?' '+a.docNome:'')]),el('td',{},[el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso orario')]),el('td',{},tipo?'—':a.ora),el('td',{},[delBtn])]));
+    delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Eliminata');await caricaTutto();}});
+    let docLabel, tipoEl, oraLabel;
+    if(isUscita){
+      docLabel=el('strong',{},'🚌 Classe '+a.classeUscita);
+      tipoEl=el('span',{class:'pill pill-teal'},'Uscita didattica');
+      const oreLabel=a.oreUscita&&a.oreUscita.length>0?a.oreUscita.join(', '):'Tutto il giorno';
+      oraLabel=oreLabel+(a.accompagnatori?' | '+a.accompagnatori:'');
+    } else {
+      docLabel=el('strong',{},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:''));
+      tipoEl=el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso orario');
+      oraLabel=tipo?'—':a.ora;
+    }
+    tbody.appendChild(el('tr',{},[el('td',{},formatDate(a.date)),el('td',{},[docLabel]),el('td',{},[tipoEl]),el('td',{},oraLabel),el('td',{},[delBtn])]));
   });
   return frag(
     el('div',{class:'page-title'},'📋 Gestione Assenze'),renderDateNav(),
-    el('div',{class:'card'},[el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Nuova assenza')]),assenzeGiorno.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza registrata per questo giorno'):el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))]),
+    el('div',{class:'card'},[el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:'8px'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),el('div',{style:{display:'flex',gap:'8px'}},[el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Assenza docente'),el('button',{class:'btn btn-sm',style:{background:'#0f766e',color:'#fff'},onclick:()=>apriFinestraUscita()},'🚌 Uscita didattica')])]),assenzeGiorno.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza o uscita registrata per questo giorno'):el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))]),
     el('div',{class:'card'},[el('div',{class:'card-title'},'📅 Tutte le assenze (anno scolastico)'),el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Data'),el('th',{},'Docente'),el('th',{},'Tipo'),el('th',{},'Ora'),el('th',{},'Azione')])]),tbody])])])
   );
 }
@@ -888,8 +940,132 @@ function apriFinestraAssenza(){
 }
 
 // ================================================================
-// SOSTITUZIONI
+// USCITA DIDATTICA
 // ================================================================
+function apriFinestraUscita(){
+  const classiDisponibili=[...new Set(STATE.orario.map(r=>r.classe).filter(Boolean))].sort();
+  const giorno=getDayName(STATE.selDate);
+  const errDiv=el('div',{class:'err-msg hidden'});
+
+  let selectedClasse='';
+  let modalitaUscita='giorno'; // 'giorno' | 'ore'
+  let oreSelezionate=new Set();
+  let accompagnatori='';
+
+  // ── Classe ──
+  const selClasse=el('select',{});
+  selClasse.appendChild(el('option',{value:''},'— Seleziona classe —'));
+  classiDisponibili.forEach(c=>selClasse.appendChild(el('option',{value:c},c)));
+  selClasse.addEventListener('change',e=>{selectedClasse=e.target.value;aggiornaOreClasse();});
+
+  // ── Modalità ──
+  const btnGiorno=el('button',{type:'button',class:'btn btn-primary btn-sm'},'☀️ Tutto il giorno');
+  const btnOre=el('button',{type:'button',class:'btn btn-outline btn-sm'},'⏱ Solo alcune ore');
+
+  // ── Selezione ore ──
+  const wrapOreClasse=el('div',{style:{display:'none',marginTop:'0.5rem'}});
+  const oreCheckboxWrap=el('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'4px'}});
+  wrapOreClasse.appendChild(el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',marginBottom:'4px',display:'block'}},'Seleziona le ore coinvolte'));
+  wrapOreClasse.appendChild(oreCheckboxWrap);
+
+  function aggiornaOreClasse(){
+    oreCheckboxWrap.innerHTML='';
+    oreSelezionate.clear();
+    if(!selectedClasse)return;
+    const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()).map(r=>r.oInizio))].sort();
+    if(ore.length===0){
+      oreCheckboxWrap.appendChild(el('span',{style:{fontSize:'0.78rem',color:'#aaa'}},'Nessuna lezione in orario per questa classe oggi'));
+      return;
+    }
+    ore.forEach(ora=>{
+      const id='chk_'+ora.replace(':','');
+      const lbl=el('label',{style:{display:'inline-flex',alignItems:'center',gap:'4px',background:'#f0f4fb',border:'1px solid #d0daf0',borderRadius:'6px',padding:'4px 10px',cursor:'pointer',fontSize:'0.83rem',fontWeight:500}});
+      const chk=el('input',{type:'checkbox',id,value:ora,style:{cursor:'pointer'}});
+      chk.addEventListener('change',()=>{if(chk.checked)oreSelezionate.add(ora);else oreSelezionate.delete(ora);});
+      lbl.appendChild(chk);lbl.appendChild(document.createTextNode(' '+ora));
+      oreCheckboxWrap.appendChild(lbl);
+    });
+  }
+
+  function applicaModalitaUscita(m){
+    modalitaUscita=m;
+    if(m==='giorno'){btnGiorno.className='btn btn-primary btn-sm';btnOre.className='btn btn-outline btn-sm';wrapOreClasse.style.display='none';}
+    else{btnGiorno.className='btn btn-outline btn-sm';btnOre.className='btn btn-primary btn-sm';wrapOreClasse.style.display='block';}
+  }
+  btnGiorno.addEventListener('click',()=>applicaModalitaUscita('giorno'));
+  btnOre.addEventListener('click',()=>applicaModalitaUscita('ore'));
+
+  // ── Accompagnatori ──
+  const inpAccomp=el('input',{type:'text',placeholder:'es. Rossi, Bianchi (oppure lascia vuoto)'});
+  inpAccomp.addEventListener('input',e=>accompagnatori=e.target.value);
+
+  // ── Data ──
+  const inpData=el('input',{type:'date',value:STATE.selDate});
+  inpData.addEventListener('change',e=>{
+    // aggiorna ore disponibili se cambia data (giorno della settimana)
+    const g=getDayName(e.target.value);
+    if(selectedClasse&&modalitaUscita==='ore') aggiornaOreClasse();
+  });
+
+  // ── Info docenti liberati ──
+  const infoDocenti=el('div',{style:{display:'none',marginTop:'0.5rem',background:'#e0f7f4',border:'1px solid #99e6da',borderRadius:'8px',padding:'0.6rem 0.9rem',fontSize:'0.78rem',color:'#0f766e',lineHeight:1.6}});
+
+  function aggiornaInfoDocenti(){
+    if(!selectedClasse){infoDocenti.style.display='none';return;}
+    const gCalc=getDayName(inpData.value||STATE.selDate);
+    const lezioniClasse=STATE.orario.filter(r=>stessoGiorno(r.giorno,gCalc)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()&&!isDisposizioneMateria(r.mat_nome));
+    const docLiberati=[...new Set(lezioniClasse.flatMap(r=>r.doc_cogn))];
+    if(docLiberati.length===0){infoDocenti.style.display='none';return;}
+    infoDocenti.style.display='block';
+    infoDocenti.innerHTML='';
+    infoDocenti.appendChild(el('strong',{},'📋 Docenti che risulteranno a disposizione: '));
+    infoDocenti.appendChild(document.createTextNode(docLiberati.join(', ')));
+  }
+
+  selClasse.addEventListener('change',()=>{aggiornaOreClasse();aggiornaInfoDocenti();});
+  inpData.addEventListener('change',aggiornaInfoDocenti);
+
+  // ── Submit ──
+  async function submit(){
+    errDiv.className='err-msg hidden';
+    const data=inpData.value||STATE.selDate;
+    if(!selectedClasse){errDiv.textContent='Seleziona una classe';errDiv.className='err-msg';return;}
+    if(!data){errDiv.textContent='Seleziona la data';errDiv.className='err-msg';return;}
+    if(modalitaUscita==='ore'&&oreSelezionate.size===0){errDiv.textContent='Seleziona almeno un\'ora';errDiv.className='err-msg';return;}
+    const oreArr=modalitaUscita==='ore'?[...oreSelezionate].sort():[];
+    const nuova={docCogn:'',docNome:'',tipo:'uscita',ora:'',date:data,classeUscita:selectedClasse,oreUscita:oreArr.length>0?oreArr:null,accompagnatori:accompagnatori.trim()||null};
+    const saved=await dbInserisciAssenza(nuova);
+    if(saved){
+      STATE.selDate=data;STATE.modal=null;
+      addToast('✅ Uscita didattica registrata — Classe '+selectedClasse);
+      await caricaTutto();
+    }
+  }
+
+  STATE.modal={
+    title:'🚌 Inserisci Uscita Didattica',
+    body:el('div',{},[
+      errDiv,
+      el('div',{class:'section-note',style:{marginBottom:'1rem'}},'I docenti che avevano lezione con questa classe nelle ore indicate diventeranno automaticamente "a disposizione".'),
+      el('div',{class:'form-group'},[el('label',{},'Classe in uscita'),selClasse]),
+      el('div',{class:'form-group'},[el('label',{},'Data'),inpData]),
+      el('div',{style:{marginBottom:'0.75rem'}},[
+        el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',display:'block',marginBottom:'6px'}},'Durata uscita'),
+        el('div',{style:{display:'flex',gap:'8px'}},[btnGiorno,btnOre]),
+        wrapOreClasse
+      ]),
+      el('div',{class:'form-group'},[el('label',{},'Accompagnatori (facoltativo)'),inpAccomp]),
+      infoDocenti,
+    ]),
+    actions:[
+      {label:'Annulla',cls:'btn btn-outline',cb:()=>{STATE.modal=null;render();}},
+      {label:'🚌 Salva uscita',cls:'btn btn-success',cb:submit}
+    ]
+  };
+  render();
+}
+
+
 function renderSostituzioni(){
   const isAdmin=STATE.ruolo==='admin';
   const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate);
@@ -964,6 +1140,53 @@ function renderSostituzioni(){
 }
 
 function renderCardAssenza(a,isAdmin){
+  // ── USCITA DIDATTICA ──
+  if(a.tipo==='uscita'){
+    const giorno=getDayName(a.date);
+    const oreLabel=a.oreUscita&&a.oreUscita.length>0?('Ore: '+a.oreUscita.join(', ')):'Tutto il giorno';
+    // Docenti liberati
+    const lezioniClasse=STATE.orario.filter(r=>{
+      if(!stessoGiorno(r.giorno,giorno))return false;
+      if(!r.classe||r.classe.toLowerCase().trim()!==a.classeUscita.toLowerCase().trim())return false;
+      if(isDisposizioneMateria(r.mat_nome))return false;
+      if(a.oreUscita&&a.oreUscita.length>0)return a.oreUscita.includes(r.oInizio);
+      return true;
+    });
+    const docLiberati=[...new Set(lezioniClasse.flatMap(r=>r.doc_cogn))];
+    const tbody2=el('tbody',{});
+    if(lezioniClasse.length===0){tbody2.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#aaa',fontSize:'0.83rem',padding:'0.75rem'}},'Nessuna lezione trovata in orario per questa classe oggi')]));}
+    else{
+      lezioniClasse.forEach(l=>{
+        tbody2.appendChild(el('tr',{},[
+          el('td',{},[el('strong',{},l.oInizio)]),
+          el('td',{},l.durata+'min'),
+          el('td',{},l.mat_nome),
+          el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip',style:{background:'#dcfce7',borderColor:'#86efac',color:'#15803d'}},d))]),
+          el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)])
+        ]));
+      });
+    }
+    return el('div',{class:'card',style:{borderLeft:'4px solid #0f766e'}},[
+      el('div',{class:'card-title'},[
+        '🚌 Classe ',el('strong',{},a.classeUscita),' — Uscita didattica ',
+        el('span',{class:'pill pill-teal',style:{marginLeft:'6px'}},oreLabel),
+        a.accompagnatori?el('span',{style:{marginLeft:'8px',fontSize:'0.78rem',color:'#555'}},'Accomp: '+a.accompagnatori):null
+      ].filter(Boolean)),
+      el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem'}},[
+        '📋 Docenti a disposizione per questa classe: ',
+        docLiberati.length>0?el('strong',{},docLiberati.join(', ')):el('em',{},'nessuno trovato in orario')
+      ]),
+      el('div',{class:'tbl-wrap'},[
+        el('table',{},[
+          el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente (ora libero)'),el('th',{},'Sede')])]),
+          tbody2
+        ])
+      ]),
+      isAdmin?el('div',{style:{marginTop:'0.75rem'}},[el('button',{class:'btn btn-danger btn-sm',onclick:async()=>{if(!confirm('Eliminare questa uscita?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Uscita eliminata');await caricaTutto();}}},'🗑 Elimina uscita')]):null
+    ].filter(Boolean));
+  }
+
+  // ── ASSENZA DOCENTE ──
   const lezioni=lezioniPerAssenza(a);
   const tipo=a.tipo==='giorno';
   const thead=el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente/i'),el('th',{},'Classe'),el('th',{},'Aula'),el('th',{},'Sede'),el('th',{style:{minWidth:'210px'}},'Sostituto assegnato')])]);
@@ -995,10 +1218,12 @@ function renderBachecaSostituzioni(){
   const oggi=todayStr();
   const giornoCalc=getDayName(oggi);
   const assenzeOggi=STATE.assenze.filter(a=>a.date===oggi);
+  const usciteOggi=assenzeOggi.filter(a=>a.tipo==='uscita');
+  const assenzeDocenti=assenzeOggi.filter(a=>a.tipo!=='uscita');
 
   // Raccoglie tutte le righe di sostituzione per oggi
   const righe=[];
-  assenzeOggi.forEach(a=>{
+  assenzeDocenti.forEach(a=>{
     const lezioni=lezioniPerAssenza(a);
     lezioni.forEach((l,i)=>{
       const key=a.id+'_'+i;
@@ -1055,9 +1280,27 @@ function renderBachecaSostituzioni(){
   const nTotali=righe.length;
 
   const statBar=el('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',marginBottom:'1rem'}}, [
-    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(assenzeOggi.length)),el('div',{class:'stat-lbl'},'Assenti oggi')]),
+    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(assenzeDocenti.length)),el('div',{class:'stat-lbl'},'Docenti assenti')]),
+    el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(usciteOggi.length)),el('div',{class:'stat-lbl'},'Classi in uscita')]),
     el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem'}},String(nTotali)),el('div',{class:'stat-lbl'},'Ore da coprire')]),
     el('div',{class:'stat-card',style:{flex:'1',minWidth:'100px',padding:'0.6rem 0.9rem'}},[el('div',{class:'stat-val',style:{fontSize:'1.3rem',color:nAssegnate===nTotali&&nTotali>0?'#1a7a4a':'#1a3a6e'}},String(nAssegnate)),el('div',{class:'stat-lbl'},'Assegnate')]),
+  ]);
+
+  // ── Sezione uscite didattiche ──
+  const usciteSection=usciteOggi.length===0?null:el('div',{class:'card',style:{borderLeft:'4px solid #0f766e',marginBottom:'1rem'}},[
+    el('div',{class:'card-title'},'🚌 Uscite didattiche di oggi'),
+    el('div',{},usciteOggi.map(u=>{
+      const giorno=getDayName(oggi);
+      const oreLabel=u.oreUscita&&u.oreUscita.length>0?('Ore: '+u.oreUscita.join(', ')):'Tutto il giorno';
+      const docLiberati=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe&&r.classe.toLowerCase().trim()===u.classeUscita.toLowerCase().trim()&&!isDisposizioneMateria(r.mat_nome)&&(u.oreUscita&&u.oreUscita.length>0?u.oreUscita.includes(r.oInizio):true)).flatMap(r=>r.doc_cogn))];
+      return el('div',{style:{padding:'0.5rem 0',borderBottom:'1px solid #e0f7f4',display:'flex',alignItems:'flex-start',gap:'12px',flexWrap:'wrap'}},[
+        el('span',{class:'pill pill-teal',style:{flexShrink:0}},u.classeUscita),
+        el('div',{style:{flex:1,minWidth:'200px'}},[
+          el('div',{style:{fontWeight:600,fontSize:'0.85rem'}},oreLabel+(u.accompagnatori?' · Accomp: '+u.accompagnatori:'')),
+          docLiberati.length>0?el('div',{style:{fontSize:'0.78rem',color:'#555',marginTop:'2px'}},'A disposizione: '+docLiberati.join(', ')):null
+        ].filter(Boolean))
+      ]);
+    }))
   ]);
 
   const tableCard=el('div',{class:'card'},[
@@ -1065,7 +1308,7 @@ function renderBachecaSostituzioni(){
       el('div',{class:'card-title',style:{marginBottom:0}},'📋 Sostituzioni di oggi — '+formatDate(oggi)),
       el('div',{style:{display:'flex',gap:'8px',alignItems:'center'}},[lastUpdate,refreshBtn])
     ]),
-    el('div',{class:'tbl-wrap',style:{maxHeight:'calc(100vh - 320px)',overflowY:'auto'}},[
+    el('div',{class:'tbl-wrap',style:{maxHeight:'calc(100vh - 360px)',overflowY:'auto'}},[
       el('table',{},[
         el('thead',{style:{position:'sticky',top:0,zIndex:10}},[
           el('tr',{},['Ora','Materia','Docente assente','Classe','Aula','Sede','Sostituto'].map(h=>el('th',{},h)))
@@ -1075,12 +1318,14 @@ function renderBachecaSostituzioni(){
     ])
   ]);
 
-  return frag(
+  const f=frag(
     el('div',{class:'page-title'},'📋 Bacheca Sostituzioni'),
     el('div',{class:'notif notif-info',style:{marginBottom:'1rem'}},'👁 Vista sola lettura · Si aggiorna automaticamente ogni minuto · '+giornoCalc),
-    statBar,
-    tableCard
+    statBar
   );
+  if(usciteSection)f.appendChild(usciteSection);
+  f.appendChild(tableCard);
+  return f;
 }
 
 // DROPDOWN
