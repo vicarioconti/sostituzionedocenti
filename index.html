@@ -464,6 +464,27 @@ function lezioniPerAssenza(assenza){
     return false;
   });
 }
+// ── Docente co-presente che copre automaticamente ──
+// Restituisce i cognomi dei colleghi presenti in aula per quella lezione
+// (tutti i doc_cogn della lezione tranne quello assente).
+function coDocentiPresenti(lezione, selDate){
+  // Trova tutte le assenze del giorno per quella ora
+  const assenzeDelGiorno=STATE.assenze.filter(a=>{
+    if(a.date!==selDate)return false;
+    if(a.tipo==='giorno')return true;
+    if(a.tipo==='ora')return a.ora===lezione.oInizio;
+    return false;
+  });
+  const docentiAssenti=new Set(assenzeDelGiorno.map(a=>a.docCogn));
+  // I co-docenti presenti sono quelli nella lezione che non sono assenti
+  return lezione.doc_cogn.filter(d=>!docentiAssenti.has(d));
+}
+// Restituisce true se la lezione ha almeno un collega presente (auto-coperta)
+function isAutoCoperta(lezione, selDate){
+  if(lezione.doc_cogn.length<2)return false;
+  return coDocentiPresenti(lezione,selDate).length>0;
+}
+
 function docentiDisponibili(lezione,selDate){
   const giorno=getDayName(selDate);
 
@@ -537,6 +558,11 @@ function docentiDisponibili(lezione,selDate){
 
   const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
   const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
+  // Docenti co-presenti in lezioni con colleghi assenti: sono già in aula → occupati
+  STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&r.doc_cogn.length>1).forEach(r=>{
+    const presenti=coDocentiPresenti(r,selDate);
+    presenti.forEach(d=>docentiOccupati.add(d));
+  });
   STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
   lezione.doc_cogn.forEach(d=>docentiOccupati.add(d));
   docentiOccupati.forEach(d=>docInDisposizione.delete(d));
@@ -1197,13 +1223,30 @@ function renderCardAssenza(a,isAdmin){
       const key=a.id+'_'+i;
       const sost=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key);
       const isDispRow=sost&&sost.isDisposizione;
-      const tr=el('tr',{style:isDispRow?{background:'#f0fdf4'}:{}},[
+      // Co-docenti presenti → lezione auto-coperta
+      const coPresenti=coDocentiPresenti(l,a.date);
+      const autoCoperta=l.doc_cogn.length>1&&coPresenti.length>0;
+      let sostitutoCell;
+      if(autoCoperta){
+        sostitutoCell=el('div',{style:{display:'flex',flexDirection:'column',gap:'3px'}},[
+          el('span',{style:{background:'#e0f7f4',border:'1px solid #99e6da',borderRadius:'6px',padding:'2px 8px',fontSize:'0.72rem',fontWeight:700,color:'#0f766e'}},'🤝 Coperta dal collega'),
+          el('span',{style:{fontSize:'0.72rem',color:'#555'}},coPresenti.map(d=>'Prof. '+d).join(', '))
+        ]);
+      } else if(isAdmin){
+        sostitutoCell=renderSelectSostituto(a,l,i,key,sost);
+      } else {
+        sostitutoCell=sost?frag(el('strong',{},sost.docCognSostituto),' ',sost.isDisposizione?el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione'):el('span',{class:'pill pill-green'},'✓ Assegnato')):el('span',{class:'pill pill-gray'},'Non assegnato');
+      }
+      const tr=el('tr',{style:autoCoperta?{background:'#f0fdf8'}:isDispRow?{background:'#f0fdf4'}:{}},[
         el('td',{},[el('strong',{},l.oInizio)]),el('td',{},l.durata+'min'),
         el('td',{},isDisposizioneMateria(l.mat_nome)?el('span',{class:'pill pill-purple'},'Disposizione'):l.mat_nome),
-        el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]),
+        el('td',{},[...l.doc_cogn.map(d=>{
+          const assente=STATE.assenze.some(ax=>ax.date===a.date&&ax.docCogn===d&&(ax.tipo==='giorno'||(ax.tipo==='ora'&&ax.ora===l.oInizio)));
+          return el('span',{class:'docente-chip',style:assente?{background:'#fdecea',borderColor:'#f5a0a0',color:'#c0392b',textDecoration:'line-through'}:{}},d+(assente?' ✗':''));
+        })]),
         el('td',{},l.classe||'—'),el('td',{},l.aula||'—'),
         el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]),
-        el('td',{},isAdmin?renderSelectSostituto(a,l,i,key,sost):(sost?frag(el('strong',{},sost.docCognSostituto),' ',sost.isDisposizione?el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione'):el('span',{class:'pill pill-green'},'✓ Assegnato')):el('span',{class:'pill pill-gray'},'Non assegnato')))
+        el('td',{},sostitutoCell)
       ]);
       tbody.appendChild(tr);
     });
@@ -1241,14 +1284,23 @@ function renderBachecaSostituzioni(){
   } else {
     righe.forEach(({assenza:a,lezione:l,sost})=>{
       const isDisp=sost&&sost.isDisposizione;
-      const tr=el('tr',{style:isDisp?{background:'#f0fdf4'}:{}});
+      const coPresenti=coDocentiPresenti(l,oggi);
+      const autoCoperta=l.doc_cogn.length>1&&coPresenti.length>0;
+      const tr=el('tr',{style:autoCoperta?{background:'#f0fdf8'}:isDisp?{background:'#f0fdf4'}:{}});
       tr.appendChild(el('td',{},[el('strong',{style:{fontSize:'0.92rem'}},l.oInizio)]));
       tr.appendChild(el('td',{},l.mat_nome||'—'));
-      tr.appendChild(el('td',{},[...l.doc_cogn.map(d=>el('span',{class:'docente-chip'},d))]));
+      tr.appendChild(el('td',{},[...l.doc_cogn.map(d=>{
+        const assente=STATE.assenze.some(ax=>ax.date===oggi&&ax.docCogn===d&&(ax.tipo==='giorno'||(ax.tipo==='ora'&&ax.ora===l.oInizio)));
+        return el('span',{class:'docente-chip',style:assente?{background:'#fdecea',borderColor:'#f5a0a0',color:'#c0392b',textDecoration:'line-through'}:{}},d);
+      })]));
       tr.appendChild(el('td',{},l.classe||'—'));
       tr.appendChild(el('td',{},l.aula||'—'));
       tr.appendChild(el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]));
-      if(sost){
+      if(autoCoperta){
+        tr.appendChild(el('td',{},[
+          el('span',{style:{background:'#e0f7f4',border:'1px solid #99e6da',borderRadius:'6px',padding:'2px 8px',fontSize:'0.72rem',fontWeight:700,color:'#0f766e'}},'🤝 '+coPresenti.map(d=>'Prof. '+d).join(', '))
+        ]));
+      } else if(sost){
         tr.appendChild(el('td',{},[
           el('strong',{},sost.docCognSostituto),
           ' ',
