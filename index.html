@@ -232,7 +232,13 @@ async function caricaTutto(){
     sb.from('utenti').select('*').order('cognome'),
     sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
   ]);
-  if(ro.data)STATE.orario=ro.data.map(r=>({...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio}));
+  if(ro.data)STATE.orario=ro.data.map(r=>{
+    // Canonicalizza il giorno: qualunque variante arrivi dal DB (con/senza accento, case mista)
+    // viene ricondotta al valore canonico di GIORNI[], così stessoGiorno() funziona sempre.
+    const gi=normalizzaGiorno(r.giorno);
+    const giornoCanon=(gi>=0&&gi<=6)?GIORNI[gi]:(r.giorno||'');
+    return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
+  });
   if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||''}));
   if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
   if(ut.data)STATE.utenti=ut.data;
@@ -1097,9 +1103,16 @@ function renderSostituzioni(){
   const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate);
   const giornoCalc=getDayName(STATE.selDate);
   const giorniNelOrario=[...new Set(STATE.orario.map(r=>r.giorno))];
+  const giorniRaw=[...new Set(STATE.orario.map(r=>JSON.stringify(r.giorno)))]; // valori raw per debug
   const lezioniGiorno=STATE.orario.filter(r=>stessoGiorno(r.giorno,giornoCalc)).length;
   const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
-    '🗓 Giorno: ',el('strong',{},giornoCalc),' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno))
+    '🗓 Giorno selezionato: ',el('strong',{},giornoCalc),
+    ' | Giorni in orario: ',el('strong',{},giorniNelOrario.join(', ')||'—'),
+    ' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno)),
+    el('details',{style:{display:'inline',marginLeft:'8px'}},[
+      el('summary',{style:{cursor:'pointer',fontSize:'0.72rem',color:'#888'}},'valori raw DB'),
+      el('code',{style:{fontSize:'0.68rem',display:'block',marginTop:'4px',whiteSpace:'pre-wrap',wordBreak:'break-all'}},giorniRaw.join('\n'))
+    ])
   ]):null;
 
   // ── VISTA ADMIN: tutto come prima ──
