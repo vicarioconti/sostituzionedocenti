@@ -182,7 +182,7 @@ STATE.logoUrl='https://raw.githubusercontent.com/vicarioconti/sostituzionedocent
 // ================================================================
 // UTILS
 // ================================================================
-function normalizzaGiorno(s){if(!s)return -1;const k=s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'');return GIORNO_MAP[k]??-1;}
+function normalizzaGiorno(s){if(!s)return -1;const k=s.trim().replace(/^"+|"+$/g,'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'');return GIORNO_MAP[k]??-1;}
 function stessoGiorno(a,b){const ia=normalizzaGiorno(a),ib=normalizzaGiorno(b);if(ia===-1||ib===-1)return false;return ia===ib;}
 function getSede(c){if(!c||!c.trim())return'de Vincenti';return CLASSI_BETTI.includes(c.toLowerCase().trim())?'Betti':'de Vincenti';}
 function getDayName(ds){if(!ds)return'';const d=new Date(ds+'T12:00:00');const n=d.getDay();const idx=n===0?6:n-1;return GIORNI[idx]??'';}
@@ -233,19 +233,27 @@ async function caricaTutto(){
     sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
   ]);
   if(ro.data){
-    // DEBUG: mostra le righe del venerdì raw dal DB
-    const rawVen=ro.data.filter(r=>(r.giorno||'').toLowerCase().includes('vener'));
-    if(rawVen.length>0){
-      console.log('[DEBUG] Righe venerdì in DB (raw):',rawVen.length,'prima riga giorno:',JSON.stringify(rawVen[0].giorno),'charCodes:',[...rawVen[0].giorno].map(c=>c.charCodeAt(0)));
-    } else {
-      console.warn('[DEBUG] Nessuna riga venerdì trovata con .includes("vener") — prova raw:',ro.data.slice(0,3).map(r=>JSON.stringify(r.giorno)));
-    }
+    const tuttiGiorni=[...new Set(ro.data.map(r=>r.giorno))];
+    console.log('[DEBUG] Tutti i valori giorno in DB:',tuttiGiorni.map(g=>JSON.stringify(g)+' charCodes:['+[...(g||'')].map(c=>c.charCodeAt(0)).join(',')+']'));
+    const stripQ=s=>s?String(s).trim().replace(/^"+|"+$/g,''):s;
     STATE.orario=ro.data.map(r=>{
-      const gi=normalizzaGiorno(r.giorno);
-      const giornoCanon=(gi>=0&&gi<=6)?GIORNI[gi]:(r.giorno||'');
-      if((r.giorno||'').toLowerCase().includes('vener'))console.log('[DEBUG] venerdì gi='+gi+' canon='+giornoCanon);
-      return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
+      const giornoRaw=stripQ(r.giorno);
+      const gi=normalizzaGiorno(giornoRaw);
+      const giornoCanon=(gi>=0&&gi<=5)?GIORNI[gi]:giornoRaw;
+      return {
+        ...r,
+        doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),
+        doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),
+        oInizio:stripQ(r.o_inizio),
+        giorno:giornoCanon,
+        mat_nome:stripQ(r.mat_nome),
+        classe:stripQ(r.classe),
+        aula:stripQ(r.aula),
+        sede:stripQ(r.sede),
+      };
     });
+    const dopoCanon=[...new Set(STATE.orario.map(r=>r.giorno))];
+    console.log('[DEBUG] Giorni dopo canonicalizzazione:',dopoCanon);
   }
   if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||'',notaUscita:a.nota_uscita||''}));
   if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione,notaClasse:s.nota_classe||''}));
