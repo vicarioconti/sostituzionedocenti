@@ -240,7 +240,7 @@ async function caricaTutto(){
     return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
   });
   if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||'',notaUscita:a.nota_uscita||''}));
-  if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
+  if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione,notaClasse:s.nota_classe||''}));
   if(ut.data)STATE.utenti=ut.data;
   if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
   render();
@@ -266,6 +266,11 @@ async function dbEliminaAssenza(id){const{error}=await sb.from('assenze').delete
 async function dbSalvaSostituzione(assenzaId,lessonKey,docCognSostituto,isDisposizione){
   const{error}=await sb.from('sostituzioni').upsert({assenza_id:assenzaId,lesson_key:lessonKey,sostituto_cogn:docCognSostituto,is_disposizione:isDisposizione,assegnata_da:STATE.currentUser.id},{onConflict:'assenza_id,lesson_key'});
   if(error){addToast('❌ Errore: '+error.message,true);return false;}
+  return true;
+}
+async function dbSalvaNotaClasse(assenzaId,lessonKey,nota){
+  const{error}=await sb.from('sostituzioni').update({nota_classe:nota||null}).eq('assenza_id',assenzaId).eq('lesson_key',lessonKey);
+  if(error){addToast('❌ Errore salvataggio nota: '+error.message,true);return false;}
   return true;
 }
 async function dbRimuoviSostituzione(assenzaId,lessonKey){const{error}=await sb.from('sostituzioni').delete().eq('assenza_id',assenzaId).eq('lesson_key',lessonKey);return !error;}
@@ -1266,7 +1271,7 @@ function renderCardAssenza(a,isAdmin){
   // ── ASSENZA DOCENTE ──
   const lezioni=lezioniPerAssenza(a);
   const tipo=a.tipo==='giorno';
-  const thead=el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente/i'),el('th',{},'Classe'),el('th',{},'Aula'),el('th',{},'Sede'),el('th',{style:{minWidth:'210px'}},'Sostituto assegnato')])]);
+  const thead=el('thead',{},[el('tr',{},[el('th',{},'Ora'),el('th',{},'Durata'),el('th',{},'Materia'),el('th',{},'Docente/i'),el('th',{},'Classe'),el('th',{},'Aula'),el('th',{},'Sede'),el('th',{style:{minWidth:'210px'}},'Sostituto assegnato'),el('th',{style:{minWidth:'160px'}},'Note classe')])]);
   const tbody=el('tbody',{});
   if(lezioni.length===0){tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#aaa',fontSize:'0.83rem',padding:'0.75rem'}},'Nessuna lezione trovata nell\'orario per questo giorno')]));}
   else{
@@ -1288,6 +1293,30 @@ function renderCardAssenza(a,isAdmin){
       } else {
         sostitutoCell=sost?frag(el('strong',{},sost.docCognSostituto),' ',sost.isDisposizione?el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ A disposizione'):el('span',{class:'pill pill-green'},'✓ Assegnato')):el('span',{class:'pill pill-gray'},'Non assegnato');
       }
+      let notaCell;
+      if(isAdmin){
+        // Input nota classe — salvato on blur, solo se c'è già un sostituto assegnato
+        const inpNota=el('input',{
+          type:'text',
+          value:sost?sost.notaClasse||'':'',
+          placeholder:'es. esce alla 4a ora',
+          style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'6px',padding:'4px 8px',fontSize:'0.78rem',fontFamily:'inherit',background:sost?'#fff':'#f5f5f5',color:'#333'}
+        });
+        if(!sost)inpNota.disabled=true;
+        inpNota.addEventListener('blur',async()=>{
+          if(!sost){return;}
+          const nuovaNota=inpNota.value.trim();
+          const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
+          if(ok){
+            const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
+            if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
+            if(nuovaNota)addToast('📝 Nota salvata');
+          }
+        });
+        notaCell=el('td',{},[inpNota]);
+      } else {
+        notaCell=el('td',{style:{fontSize:'0.78rem',color:'#555',fontStyle:sost&&sost.notaClasse?'italic':'normal'}},sost&&sost.notaClasse?sost.notaClasse:'—');
+      }
       const tr=el('tr',{style:autoCoperta?{background:'#f0fdf8'}:isDispRow?{background:'#f0fdf4'}:{}},[
         el('td',{},[el('strong',{},l.oInizio)]),el('td',{},l.durata+'min'),
         el('td',{},isDisposizioneMateria(l.mat_nome)?el('span',{class:'pill pill-purple'},'Disposizione'):l.mat_nome),
@@ -1297,7 +1326,8 @@ function renderCardAssenza(a,isAdmin){
         })]),
         el('td',{},l.classe||'—'),el('td',{},l.aula||'—'),
         el('td',{},[el('span',{class:'sede-'+(l.sede==='Betti'?'betti':'devincenti')},l.sede)]),
-        el('td',{},sostitutoCell)
+        el('td',{},sostitutoCell),
+        notaCell
       ]);
       tbody.appendChild(tr);
     });
@@ -1351,6 +1381,7 @@ function renderBachecaSostituzioni(){
         tr.appendChild(el('td',{},[
           el('span',{style:{background:'#e0f7f4',border:'1px solid #99e6da',borderRadius:'6px',padding:'2px 8px',fontSize:'0.72rem',fontWeight:700,color:'#0f766e'}},'🤝 '+coPresenti.map(d=>'Prof. '+d).join(', '))
         ]));
+        tr.appendChild(el('td',{style:{color:'#aaa',fontSize:'0.78rem'}},'—'));
       } else if(sost){
         tr.appendChild(el('td',{},[
           el('strong',{},sost.docCognSostituto),
@@ -1359,8 +1390,10 @@ function renderBachecaSostituzioni(){
             ? el('span',{style:{background:'#dcfce7',border:'1px solid #86efac',borderRadius:'6px',padding:'2px 7px',fontSize:'0.72rem',fontWeight:700,color:'#15803d'}},'⭐ Disposizione')
             : el('span',{class:'pill pill-green'},'✓')
         ]));
+        tr.appendChild(el('td',{style:{fontSize:'0.78rem',color:'#555',fontStyle:sost.notaClasse?'italic':'normal'}},sost.notaClasse||'—'));
       } else {
         tr.appendChild(el('td',{},[el('span',{class:'pill pill-gray'},'Non assegnato')]));
+        tr.appendChild(el('td',{style:{color:'#aaa',fontSize:'0.78rem'}},'—'));
       }
       tbody.appendChild(tr);
     });
@@ -1415,7 +1448,7 @@ function renderBachecaSostituzioni(){
     el('div',{class:'tbl-wrap',style:{maxHeight:'calc(100vh - 360px)',overflowY:'auto'}},[
       el('table',{},[
         el('thead',{style:{position:'sticky',top:0,zIndex:10}},[
-          el('tr',{},['Ora','Materia','Docente assente','Classe','Aula','Sede','Sostituto'].map(h=>el('th',{},h)))
+          el('tr',{},['Ora','Materia','Docente assente','Classe','Aula','Sede','Sostituto','Note classe'].map(h=>el('th',{},h)))
         ]),
         tbody
       ])
