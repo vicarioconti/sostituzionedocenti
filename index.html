@@ -232,13 +232,21 @@ async function caricaTutto(){
     sb.from('utenti').select('*').order('cognome'),
     sb.from('email_log').select('*').order('inviata_il',{ascending:false}).limit(100),
   ]);
-  if(ro.data)STATE.orario=ro.data.map(r=>{
-    // Canonicalizza il giorno: qualunque variante arrivi dal DB (con/senza accento, case mista)
-    // viene ricondotta al valore canonico di GIORNI[], così stessoGiorno() funziona sempre.
-    const gi=normalizzaGiorno(r.giorno);
-    const giornoCanon=(gi>=0&&gi<=6)?GIORNI[gi]:(r.giorno||'');
-    return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
-  });
+  if(ro.data){
+    // DEBUG: mostra le righe del venerdì raw dal DB
+    const rawVen=ro.data.filter(r=>(r.giorno||'').toLowerCase().includes('vener'));
+    if(rawVen.length>0){
+      console.log('[DEBUG] Righe venerdì in DB (raw):',rawVen.length,'prima riga giorno:',JSON.stringify(rawVen[0].giorno),'charCodes:',[...rawVen[0].giorno].map(c=>c.charCodeAt(0)));
+    } else {
+      console.warn('[DEBUG] Nessuna riga venerdì trovata con .includes("vener") — prova raw:',ro.data.slice(0,3).map(r=>JSON.stringify(r.giorno)));
+    }
+    STATE.orario=ro.data.map(r=>{
+      const gi=normalizzaGiorno(r.giorno);
+      const giornoCanon=(gi>=0&&gi<=6)?GIORNI[gi]:(r.giorno||'');
+      if((r.giorno||'').toLowerCase().includes('vener'))console.log('[DEBUG] venerdì gi='+gi+' canon='+giornoCanon);
+      return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
+    });
+  }
   if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||'',notaUscita:a.nota_uscita||''}));
   if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione,notaClasse:s.nota_classe||''}));
   if(ut.data)STATE.utenti=ut.data;
@@ -458,7 +466,7 @@ async function initAuth(){
     if(data.session.user?.user_metadata?.must_change_password===true)STATE._primoAccesso=true;
     const{data:prof}=await sb.from('utenti').select('*').eq('id',data.session.user.id).single();
     STATE.ruolo=prof?.ruolo||'docente';STATE.currentUser.profilo=prof;
-    if(STATE.ruolo==='docenti') STATE.page='bacheca';
+    if(STATE.ruolo==='docente') STATE.page='bacheca';
     await caricaTutto();
   } else render();
 }
@@ -480,7 +488,6 @@ function lezioniPerAssenza(assenza){
 // Restituisce i cognomi dei colleghi presenti in aula per quella lezione
 // (tutti i doc_cogn della lezione tranne quello assente).
 function coDocentiPresenti(lezione, selDate){
-  // Trova tutte le assenze del giorno per quella ora
   const assenzeDelGiorno=STATE.assenze.filter(a=>{
     if(a.date!==selDate)return false;
     if(a.tipo==='giorno')return true;
@@ -488,7 +495,14 @@ function coDocentiPresenti(lezione, selDate){
     return false;
   });
   const docentiAssenti=new Set(assenzeDelGiorno.map(a=>a.docCogn));
-  // I co-docenti presenti sono quelli nella lezione che non sono assenti
+  // Considera anche i docenti che sono accompagnatori in un'uscita in questa ora
+  STATE.assenze.filter(a=>{
+    if(a.date!==selDate||a.tipo!=='uscita'||!a.accompagnatori)return false;
+    if(a.oreUscita&&a.oreUscita.length>0)return a.oreUscita.includes(lezione.oInizio);
+    return true;
+  }).forEach(a=>{
+    a.accompagnatori.split(',').map(s=>s.trim()).filter(Boolean).forEach(cogn=>docentiAssenti.add(cogn));
+  });
   return lezione.doc_cogn.filter(d=>!docentiAssenti.has(d));
 }
 // Restituisce true se la lezione ha almeno un collega presente (auto-coperta)
@@ -548,36 +562,62 @@ function docentiDisponibili(lezione,selDate){
     return false;
   }
 
-  const docInDisposizione=new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio).flatMap(r=>r.doc_cogn));
-
-  // ── Docenti liberati da uscite didattiche ──
-  // Se la loro classe è in uscita (tutto il giorno o per questa ora specifica),
-  // i docenti che avrebbero quella classe in questa ora diventano a disposizione.
-  STATE.assenze.filter(a=>{
-    if(a.date!==selDate||a.tipo!=='uscita')return false;
-    if(!a.classeUscita)return false;
-    if(a.oreUscita&&a.oreUscita.length>0) return a.oreUscita.includes(lezione.oInizio);
-    return true; // tutto il giorno
-  }).forEach(uscita=>{
-    const docLiberati=STATE.orario.filter(r=>
-      stessoGiorno(r.giorno,giorno)&&
-      r.oInizio===lezione.oInizio&&
-      r.classe&&r.classe.toLowerCase().trim()===uscita.classeUscita.toLowerCase().trim()&&
-      !isDisposizioneMateria(r.mat_nome)
-    ).flatMap(r=>r.doc_cogn);
-    docLiberati.forEach(d=>docInDisposizione.add(d));
-  });
-
+  // ── Docenti occupati in questa ora (hanno lezione normale) ──
   const orarioBusy=STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&!isDisposizioneMateria(r.mat_nome));
   const docentiOccupati=new Set(orarioBusy.flatMap(r=>r.doc_cogn));
-  // Docenti co-presenti in lezioni con colleghi assenti: sono già in aula → occupati
+
+  // ── Docenti co-presenti che coprono un collega assente: occupati ──
   STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.oInizio===lezione.oInizio&&r.doc_cogn.length>1).forEach(r=>{
     const presenti=coDocentiPresenti(r,selDate);
     presenti.forEach(d=>docentiOccupati.add(d));
   });
-  STATE.assenze.filter(a=>{if(a.date!==selDate)return false;if(a.tipo==='giorno')return true;return a.tipo==='ora'&&a.ora===lezione.oInizio;}).forEach(a=>docentiOccupati.add(a.docCogn));
+
+  // ── Assenti ──
+  STATE.assenze.filter(a=>{
+    if(a.date!==selDate)return false;
+    if(a.tipo==='uscita')return false; // le uscite non rendono il docente assente
+    if(a.tipo==='giorno')return true;
+    return a.tipo==='ora'&&a.ora===lezione.oInizio;
+  }).forEach(a=>docentiOccupati.add(a.docCogn));
+
+  // ── Il docente assente stesso non può coprire ──
   lezione.doc_cogn.forEach(d=>docentiOccupati.add(d));
-  docentiOccupati.forEach(d=>docInDisposizione.delete(d));
+
+  // ── Docenti a disposizione ordinaria in questa ora ──
+  const docInDisposizione=new Set(
+    STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&isDisposizioneMateria(r.mat_nome)&&r.oInizio===lezione.oInizio)
+      .flatMap(r=>r.doc_cogn)
+      .filter(d=>!docentiOccupati.has(d))
+  );
+
+  // ── Docenti liberati da uscite didattiche → a disposizione ──
+  // Costruiamo prima l'insieme delle classi in uscita per questa ora
+  const classiInUscita=new Set(
+    STATE.assenze.filter(a=>{
+      if(a.date!==selDate||a.tipo!=='uscita'||!a.classeUscita)return false;
+      if(a.oreUscita&&a.oreUscita.length>0)return a.oreUscita.includes(lezione.oInizio);
+      return true; // tutto il giorno
+    }).map(a=>a.classeUscita.toLowerCase().trim())
+  );
+
+  if(classiInUscita.size>0){
+    STATE.orario.filter(r=>
+      stessoGiorno(r.giorno,giorno)&&
+      r.oInizio===lezione.oInizio&&
+      r.classe&&classiInUscita.has(r.classe.toLowerCase().trim())&&
+      !isDisposizioneMateria(r.mat_nome)
+    ).flatMap(r=>r.doc_cogn).forEach(d=>{
+      // Libero solo se non è anche occupato altrove (altra classe nella stessa ora)
+      const ancheOccupato=STATE.orario.some(r2=>
+        stessoGiorno(r2.giorno,giorno)&&
+        r2.oInizio===lezione.oInizio&&
+        r2.doc_cogn.includes(d)&&
+        r2.classe&&!classiInUscita.has(r2.classe.toLowerCase().trim())&&
+        !isDisposizioneMateria(r2.mat_nome)
+      );
+      if(!ancheOccupato&&!docentiOccupati.has(d))docInDisposizione.add(d);
+    });
+  }
 
   // Rimuovi dai disponibili chi è bloccato inter-sede
   [...docInDisposizione].forEach(d=>{if(isBloccatoDaInteSede(d))docInDisposizione.delete(d);});
@@ -585,7 +625,8 @@ function docentiDisponibili(lezione,selDate){
   const disposizioni=[...docInDisposizione];
   const tutti=new Set([...docentiOccupati,...docInDisposizione]);
   const filter=arr=>[...new Set(arr)].filter(c=>!tutti.has(c)&&!isBloccatoDaInteSede(c));
-  const stesseClassi=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe===lezione.classe&&!isDisposizioneMateria(r.mat_nome)&&!r.doc_cogn.every(d=>lezione.doc_cogn.includes(d))).flatMap(r=>r.doc_cogn));
+  const classeNorm=(lezione.classe||'').toLowerCase().trim();
+  const stesseClassi=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&(r.classe||'').toLowerCase().trim()===classeNorm&&classeNorm!==''&&!isDisposizioneMateria(r.mat_nome)&&!r.doc_cogn.every(d=>lezione.doc_cogn.includes(d))).flatMap(r=>r.doc_cogn));
   const stessaMat=filter(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.mat_nome===lezione.mat_nome&&r.oInizio!==lezione.oInizio&&!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn));
   const tuttiDocenti=[...new Set(STATE.orario.filter(r=>!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn))];
   const liberi=filter(tuttiDocenti);
