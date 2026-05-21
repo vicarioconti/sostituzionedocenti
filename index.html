@@ -239,7 +239,7 @@ async function caricaTutto(){
     const giornoCanon=(gi>=0&&gi<=6)?GIORNI[gi]:(r.giorno||'');
     return {...r,doc_cogn:Array.isArray(r.doc_cogn)?r.doc_cogn:JSON.parse(r.doc_cogn||'[]'),doc_nome:Array.isArray(r.doc_nome)?r.doc_nome:JSON.parse(r.doc_nome||'[]'),oInizio:r.o_inizio,giorno:giornoCanon};
   });
-  if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||''}));
+  if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||'',notaUscita:a.nota_uscita||''}));
   if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione}));
   if(ut.data)STATE.utenti=ut.data;
   if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
@@ -254,8 +254,9 @@ async function dbInserisciAssenza(a){
   // Campi extra per uscite didattiche
   if(a.tipo==='uscita'){
     payload.classe_uscita=a.classeUscita||null;
-    payload.ore_uscita=a.oreUscita||null; // JSON array di orari, null = tutto il giorno
-    payload.accompagnatori=a.accompagnatori||null; // stringa libera
+    payload.ore_uscita=a.oreUscita||null;
+    payload.accompagnatori=a.accompagnatori||null;
+    payload.nota_uscita=a.notaUscita||null;
   }
   const {data,error}=await sb.from('assenze').insert(payload).select().single();
   if(error){addToast('❌ Errore DB: '+error.message,true);return null;}
@@ -749,7 +750,8 @@ function assenzaRow(a,showDelete){
   if(isUscita){
     icon='🚌';pillClass='pill-teal';pillLabel='Uscita didattica';
     const oreLabel=a.oreUscita&&a.oreUscita.length>0?('Ore: '+a.oreUscita.join(', ')):'Tutto il giorno';
-    detTipo=formatDate(a.date)+' — Classe '+a.classeUscita+' — '+oreLabel+(a.accompagnatori?' | Accomp: '+a.accompagnatori:'');
+    const notaStr=a.notaUscita?' — '+a.notaUscita:'';
+    detTipo=formatDate(a.date)+' — Classe '+a.classeUscita+' — '+oreLabel+notaStr+(a.accompagnatori?' | Accomp: '+a.accompagnatori:'');
   } else {
     icon='👤';pillClass=tipo?'pill-red':'pill-orange';pillLabel=tipo?'Tutto giorno':'Permesso';
     detTipo=formatDate(a.date)+' — '+(tipo?'Tutto il giorno':'Permesso ora '+a.ora);
@@ -976,100 +978,133 @@ function apriFinestraAssenza(){
 // ================================================================
 function apriFinestraUscita(){
   const classiDisponibili=[...new Set(STATE.orario.map(r=>r.classe).filter(Boolean))].sort();
-  const giorno=getDayName(STATE.selDate);
   const errDiv=el('div',{class:'err-msg hidden'});
 
   let selectedClasse='';
-  let modalitaUscita='giorno'; // 'giorno' | 'ore'
+  let modalitaOre='giorno';   // 'giorno' | 'ore'
+  let modalitaData='singolo'; // 'singolo' | 'periodo'
   let oreSelezionate=new Set();
   let accompagnatori='';
+  let notaUscita='';
+  let selectedDate=STATE.selDate;
+  let selectedDateDa=STATE.selDate;
+  let selectedDateA=STATE.selDate;
 
   // ── Classe ──
   const selClasse=el('select',{});
   selClasse.appendChild(el('option',{value:''},'— Seleziona classe —'));
   classiDisponibili.forEach(c=>selClasse.appendChild(el('option',{value:c},c)));
-  selClasse.addEventListener('change',e=>{selectedClasse=e.target.value;aggiornaOreClasse();});
+  selClasse.addEventListener('change',e=>{selectedClasse=e.target.value;aggiornaOreClasse();aggiornaInfoDocenti();});
 
-  // ── Modalità ──
-  const btnGiorno=el('button',{type:'button',class:'btn btn-primary btn-sm'},'☀️ Tutto il giorno');
-  const btnOre=el('button',{type:'button',class:'btn btn-outline btn-sm'},'⏱ Solo alcune ore');
-
-  // ── Selezione ore ──
+  // ── Modalità durata (ore) ──
+  const btnTuttoGiorno=el('button',{type:'button',class:'btn btn-primary btn-sm'},'☀️ Tutto il giorno');
+  const btnSoloOre=el('button',{type:'button',class:'btn btn-outline btn-sm'},'⏱ Solo alcune ore');
   const wrapOreClasse=el('div',{style:{display:'none',marginTop:'0.5rem'}});
   const oreCheckboxWrap=el('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'4px'}});
   wrapOreClasse.appendChild(el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',marginBottom:'4px',display:'block'}},'Seleziona le ore coinvolte'));
   wrapOreClasse.appendChild(oreCheckboxWrap);
 
   function aggiornaOreClasse(){
-    oreCheckboxWrap.innerHTML='';
-    oreSelezionate.clear();
-    if(!selectedClasse)return;
-    const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,giorno)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()).map(r=>r.oInizio))].sort();
-    if(ore.length===0){
-      oreCheckboxWrap.appendChild(el('span',{style:{fontSize:'0.78rem',color:'#aaa'}},'Nessuna lezione in orario per questa classe oggi'));
-      return;
-    }
+    oreCheckboxWrap.innerHTML='';oreSelezionate.clear();
+    if(!selectedClasse||modalitaOre!=='ore')return;
+    const refDate=modalitaData==='singolo'?selectedDate:selectedDateDa;
+    const g=getDayName(refDate);
+    const ore=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,g)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()).map(r=>r.oInizio))].sort();
+    if(ore.length===0){oreCheckboxWrap.appendChild(el('span',{style:{fontSize:'0.78rem',color:'#aaa'}},'Nessuna lezione trovata in orario per questa classe'));return;}
     ore.forEach(ora=>{
-      const id='chk_'+ora.replace(':','');
       const lbl=el('label',{style:{display:'inline-flex',alignItems:'center',gap:'4px',background:'#f0f4fb',border:'1px solid #d0daf0',borderRadius:'6px',padding:'4px 10px',cursor:'pointer',fontSize:'0.83rem',fontWeight:500}});
-      const chk=el('input',{type:'checkbox',id,value:ora,style:{cursor:'pointer'}});
+      const chk=el('input',{type:'checkbox',value:ora,style:{cursor:'pointer'}});
       chk.addEventListener('change',()=>{if(chk.checked)oreSelezionate.add(ora);else oreSelezionate.delete(ora);});
       lbl.appendChild(chk);lbl.appendChild(document.createTextNode(' '+ora));
       oreCheckboxWrap.appendChild(lbl);
     });
   }
 
-  function applicaModalitaUscita(m){
-    modalitaUscita=m;
-    if(m==='giorno'){btnGiorno.className='btn btn-primary btn-sm';btnOre.className='btn btn-outline btn-sm';wrapOreClasse.style.display='none';}
-    else{btnGiorno.className='btn btn-outline btn-sm';btnOre.className='btn btn-primary btn-sm';wrapOreClasse.style.display='block';}
+  function applicaModalitaOre(m){
+    modalitaOre=m;
+    if(m==='giorno'){btnTuttoGiorno.className='btn btn-primary btn-sm';btnSoloOre.className='btn btn-outline btn-sm';wrapOreClasse.style.display='none';}
+    else{btnTuttoGiorno.className='btn btn-outline btn-sm';btnSoloOre.className='btn btn-primary btn-sm';wrapOreClasse.style.display='block';aggiornaOreClasse();}
   }
-  btnGiorno.addEventListener('click',()=>applicaModalitaUscita('giorno'));
-  btnOre.addEventListener('click',()=>applicaModalitaUscita('ore'));
+  btnTuttoGiorno.addEventListener('click',()=>applicaModalitaOre('giorno'));
+  btnSoloOre.addEventListener('click',()=>applicaModalitaOre('ore'));
+
+  // ── Modalità data (singolo / periodo) ──
+  const btnSingolo=el('button',{type:'button',class:'btn btn-primary btn-sm'},'📅 Giorno singolo');
+  const btnPeriodo=el('button',{type:'button',class:'btn btn-outline btn-sm'},'📆 Più giorni');
+
+  const wrapSingolo=el('div',{class:'form-group'},[el('label',{},'Data'),el('input',{type:'date',value:selectedDate,onchange:e=>{selectedDate=e.target.value;aggiornaOreClasse();aggiornaInfoDocenti();}})]);
+  const inpDa=el('input',{type:'date',value:selectedDateDa});
+  const inpA=el('input',{type:'date',value:selectedDateA});
+  inpDa.addEventListener('change',e=>{selectedDateDa=e.target.value;aggiornaOreClasse();aggiornaInfoDocenti();});
+  inpA.addEventListener('change',e=>{selectedDateA=e.target.value;});
+  const wrapPeriodo=el('div',{style:{display:'none'}},[
+    el('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap'}},[
+      el('div',{class:'form-group',style:{flex:1,minWidth:'130px'}},[el('label',{},'Dal'),inpDa]),
+      el('div',{class:'form-group',style:{flex:1,minWidth:'130px'}},[el('label',{},'Al'),inpA])
+    ]),
+    el('div',{class:'notif notif-info',style:{fontSize:'0.78rem',marginBottom:'0'}},'⚠️ Per uscite su più giorni (es. viaggio di istruzione), le ore "solo alcune ore" si applicano al giorno di partenza/rientro.')
+  ]);
+
+  function applicaModalitaData(m){
+    modalitaData=m;
+    if(m==='singolo'){
+      btnSingolo.className='btn btn-primary btn-sm';btnPeriodo.className='btn btn-outline btn-sm';
+      wrapSingolo.style.display='block';wrapPeriodo.style.display='none';
+    } else {
+      btnSingolo.className='btn btn-outline btn-sm';btnPeriodo.className='btn btn-primary btn-sm';
+      wrapSingolo.style.display='none';wrapPeriodo.style.display='block';
+    }
+  }
+  btnSingolo.addEventListener('click',()=>applicaModalitaData('singolo'));
+  btnPeriodo.addEventListener('click',()=>applicaModalitaData('periodo'));
 
   // ── Accompagnatori ──
   const inpAccomp=el('input',{type:'text',placeholder:'es. Rossi, Bianchi (oppure lascia vuoto)'});
   inpAccomp.addEventListener('input',e=>accompagnatori=e.target.value);
 
-  // ── Data ──
-  const inpData=el('input',{type:'date',value:STATE.selDate});
-  inpData.addEventListener('change',e=>{
-    // aggiorna ore disponibili se cambia data (giorno della settimana)
-    const g=getDayName(e.target.value);
-    if(selectedClasse&&modalitaUscita==='ore') aggiornaOreClasse();
-  });
+  // ── Nota / Motivazione ──
+  const inpNota=el('input',{type:'text',placeholder:'es. Viaggio di istruzione, Uscita al Museo...'});
+  inpNota.addEventListener('input',e=>notaUscita=e.target.value);
 
   // ── Info docenti liberati ──
   const infoDocenti=el('div',{style:{display:'none',marginTop:'0.5rem',background:'#e0f7f4',border:'1px solid #99e6da',borderRadius:'8px',padding:'0.6rem 0.9rem',fontSize:'0.78rem',color:'#0f766e',lineHeight:1.6}});
-
   function aggiornaInfoDocenti(){
     if(!selectedClasse){infoDocenti.style.display='none';return;}
-    const gCalc=getDayName(inpData.value||STATE.selDate);
-    const lezioniClasse=STATE.orario.filter(r=>stessoGiorno(r.giorno,gCalc)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()&&!isDisposizioneMateria(r.mat_nome));
-    const docLiberati=[...new Set(lezioniClasse.flatMap(r=>r.doc_cogn))];
-    if(docLiberati.length===0){infoDocenti.style.display='none';return;}
-    infoDocenti.style.display='block';
-    infoDocenti.innerHTML='';
-    infoDocenti.appendChild(el('strong',{},'📋 Docenti che risulteranno a disposizione: '));
-    infoDocenti.appendChild(document.createTextNode(docLiberati.join(', ')));
+    const refDate=modalitaData==='singolo'?selectedDate:selectedDateDa;
+    const g=getDayName(refDate);
+    const doc=[...new Set(STATE.orario.filter(r=>stessoGiorno(r.giorno,g)&&r.classe&&r.classe.toLowerCase().trim()===selectedClasse.toLowerCase().trim()&&!isDisposizioneMateria(r.mat_nome)).flatMap(r=>r.doc_cogn))];
+    if(doc.length===0){infoDocenti.style.display='none';return;}
+    infoDocenti.style.display='block';infoDocenti.innerHTML='';
+    infoDocenti.appendChild(el('strong',{},'📋 Docenti a disposizione (giorno di partenza): '));
+    infoDocenti.appendChild(document.createTextNode(doc.join(', ')));
   }
-
-  selClasse.addEventListener('change',()=>{aggiornaOreClasse();aggiornaInfoDocenti();});
-  inpData.addEventListener('change',aggiornaInfoDocenti);
 
   // ── Submit ──
   async function submit(){
     errDiv.className='err-msg hidden';
-    const data=inpData.value||STATE.selDate;
     if(!selectedClasse){errDiv.textContent='Seleziona una classe';errDiv.className='err-msg';return;}
-    if(!data){errDiv.textContent='Seleziona la data';errDiv.className='err-msg';return;}
-    if(modalitaUscita==='ore'&&oreSelezionate.size===0){errDiv.textContent='Seleziona almeno un\'ora';errDiv.className='err-msg';return;}
-    const oreArr=modalitaUscita==='ore'?[...oreSelezionate].sort():[];
-    const nuova={docCogn:'',docNome:'',tipo:'uscita',ora:'',date:data,classeUscita:selectedClasse,oreUscita:oreArr.length>0?oreArr:null,accompagnatori:accompagnatori.trim()||null};
-    const saved=await dbInserisciAssenza(nuova);
-    if(saved){
-      STATE.selDate=data;STATE.modal=null;
-      addToast('✅ Uscita didattica registrata — Classe '+selectedClasse);
+    if(modalitaOre==='ore'&&oreSelezionate.size===0){errDiv.textContent='Seleziona almeno un\'ora';errDiv.className='err-msg';return;}
+    let dates;
+    if(modalitaData==='singolo'){
+      if(!selectedDate){errDiv.textContent='Seleziona la data';errDiv.className='err-msg';return;}
+      dates=[selectedDate];
+    } else {
+      if(!selectedDateDa||!selectedDateA){errDiv.textContent='Seleziona le date del periodo';errDiv.className='err-msg';return;}
+      if(selectedDateA<selectedDateDa){errDiv.textContent='La data di fine deve essere uguale o successiva alla data di inizio';errDiv.className='err-msg';return;}
+      dates=dateRange(selectedDateDa,selectedDateA);
+      if(dates.length===0){errDiv.textContent='Nessun giorno valido nel periodo';errDiv.className='err-msg';return;}
+    }
+    const oreArr=modalitaOre==='ore'?[...oreSelezionate].sort():[];
+    let salvate=0;
+    for(const d of dates){
+      const nuova={docCogn:'',docNome:'',tipo:'uscita',ora:'',date:d,classeUscita:selectedClasse,oreUscita:oreArr.length>0?oreArr:null,accompagnatori:accompagnatori.trim()||null,notaUscita:notaUscita.trim()||null};
+      const saved=await dbInserisciAssenza(nuova);
+      if(saved)salvate++;
+    }
+    if(salvate>0){
+      STATE.selDate=modalitaData==='singolo'?selectedDate:selectedDateDa;
+      STATE.modal=null;
+      addToast('✅ '+(salvate===1?'Uscita registrata':'Uscita registrata per '+salvate+' giorni')+' — Classe '+selectedClasse);
       await caricaTutto();
     }
   }
@@ -1080,12 +1115,17 @@ function apriFinestraUscita(){
       errDiv,
       el('div',{class:'section-note',style:{marginBottom:'1rem'}},'I docenti che avevano lezione con questa classe nelle ore indicate diventeranno automaticamente "a disposizione".'),
       el('div',{class:'form-group'},[el('label',{},'Classe in uscita'),selClasse]),
-      el('div',{class:'form-group'},[el('label',{},'Data'),inpData]),
       el('div',{style:{marginBottom:'0.75rem'}},[
-        el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',display:'block',marginBottom:'6px'}},'Durata uscita'),
-        el('div',{style:{display:'flex',gap:'8px'}},[btnGiorno,btnOre]),
+        el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',display:'block',marginBottom:'6px'}},'Periodo'),
+        el('div',{style:{display:'flex',gap:'8px',marginBottom:'8px'}},[btnSingolo,btnPeriodo]),
+        wrapSingolo,wrapPeriodo
+      ]),
+      el('div',{style:{marginBottom:'0.75rem'}},[
+        el('label',{style:{fontSize:'0.8rem',fontWeight:600,color:'#444',display:'block',marginBottom:'6px'}},'Orario'),
+        el('div',{style:{display:'flex',gap:'8px'}},[btnTuttoGiorno,btnSoloOre]),
         wrapOreClasse
       ]),
+      el('div',{class:'form-group'},[el('label',{},'Motivazione (facoltativo)'),inpNota]),
       el('div',{class:'form-group'},[el('label',{},'Accompagnatori (facoltativo)'),inpAccomp]),
       infoDocenti,
     ]),
@@ -1105,7 +1145,7 @@ function renderSostituzioni(){
   const giorniNelOrario=[...new Set(STATE.orario.map(r=>r.giorno))];
   const lezioniGiorno=STATE.orario.filter(r=>stessoGiorno(r.giorno,giornoCalc)).length;
   // Conteggio per giorno per diagnostica rapida
-  const conteggioPerGiorno=GIORNI.map(g=>{const n=STATE.orario.filter(r=>r.giorno===g).length;return g.substring(0,3)+': '+n;}).join(' | ');
+  const conteggioPerGiorno=GIORNI.map(g=>{const n=STATE.orario.filter(r=>stessoGiorno(r.giorno,g)).length;return g.substring(0,3)+': '+n;}).join(' | ');
   const debugBar=STATE.orario.length>0?el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem',gap:'6px',flexWrap:'wrap'}},[
     '🗓 Giorno selezionato: ',el('strong',{},giornoCalc),
     ' | Lezioni di oggi: ',el('strong',{},String(lezioniGiorno)),
@@ -1206,6 +1246,7 @@ function renderCardAssenza(a,isAdmin){
       el('div',{class:'card-title'},[
         '🚌 Classe ',el('strong',{},a.classeUscita),' — Uscita didattica ',
         el('span',{class:'pill pill-teal',style:{marginLeft:'6px'}},oreLabel),
+        a.notaUscita?el('span',{style:{marginLeft:'8px',fontSize:'0.82rem',color:'#0f766e',fontStyle:'italic'}},'"'+a.notaUscita+'"'):null,
         a.accompagnatori?el('span',{style:{marginLeft:'8px',fontSize:'0.78rem',color:'#555'}},'Accomp: '+a.accompagnatori):null
       ].filter(Boolean)),
       el('div',{class:'notif notif-info',style:{marginBottom:'0.75rem',fontSize:'0.79rem'}},[
@@ -1359,6 +1400,7 @@ function renderBachecaSostituzioni(){
         el('span',{class:'pill pill-teal',style:{flexShrink:0}},u.classeUscita),
         el('div',{style:{flex:1,minWidth:'200px'}},[
           el('div',{style:{fontWeight:600,fontSize:'0.85rem'}},oreLabel+(u.accompagnatori?' · Accomp: '+u.accompagnatori:'')),
+          u.notaUscita?el('div',{style:{fontSize:'0.8rem',color:'#0f766e',fontStyle:'italic',marginTop:'1px'}},'"'+u.notaUscita+'"'):null,
           docLiberati.length>0?el('div',{style:{fontSize:'0.78rem',color:'#555',marginTop:'2px'}},'A disposizione: '+docLiberati.join(', ')):null
         ].filter(Boolean))
       ]);
@@ -1465,14 +1507,14 @@ function renderOrario(){
     GIORNI.forEach(g=>fGSel.appendChild(el('option',{value:g},g)));
     fGSel.value=filtroGiorno;
     fGSel.addEventListener('change',e=>{STATE._orarioFiltro=e.target.value;STATE._orarioFiltroOra='';render();});
-    const oreDisp=[...new Set((filtroGiorno?STATE.orario.filter(r=>r.giorno===filtroGiorno):STATE.orario).map(r=>r.oInizio))].sort();
+    const oreDisp=[...new Set((filtroGiorno?STATE.orario.filter(r=>stessoGiorno(r.giorno,filtroGiorno)):STATE.orario).map(r=>r.oInizio))].sort();
     const fOSel=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 8px',fontSize:'0.85rem',fontFamily:'inherit'}});
     fOSel.appendChild(el('option',{value:''},'Tutte le ore'));
     oreDisp.forEach(o=>fOSel.appendChild(el('option',{value:o},o)));
     fOSel.value=filtroOra;
     fOSel.addEventListener('change',e=>{STATE._orarioFiltroOra=e.target.value;render();});
     let filtered=STATE.orario;
-    if(filtroGiorno)filtered=filtered.filter(r=>r.giorno===filtroGiorno);
+    if(filtroGiorno)filtered=filtered.filter(r=>stessoGiorno(r.giorno,filtroGiorno));
     if(filtroOra)filtered=filtered.filter(r=>r.oInizio===filtroOra);
     const tbody=el('tbody',{});
     if(STATE.orario.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'8',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessun orario caricato.')]));
