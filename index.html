@@ -201,22 +201,52 @@ function normalizzaOra(s){
   return t;
 }
 
+function parseCSVLine(line){
+  // Parser CSV corretto che gestisce campi quotati con virgole interne
+  const parts=[];let buf='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){
+      if(inQ&&line[i+1]==='"'){buf+='"';i++;}  // escaped quote ""
+      else inQ=!inQ;
+    } else if(c===','&&!inQ){parts.push(buf.trim());buf='';}
+    else buf+=c;
+  }
+  parts.push(buf.trim());
+  return parts;
+}
+
 function parseCSV(text){
   const rows=[];
-  for(const line of text.trim().split('\n')){
-    if(!line.trim()||line.trim().startsWith('#'))continue;
-    const parts=[];let buf='',inQ=false;
-    for(const c of line){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){parts.push(buf.trim());buf='';}else buf+=c;}
-    parts.push(buf.trim());
+  for(let line of text.trim().split('\n')){
+    line=line.trim().replace(/\r$/,'');
+    if(!line||line.startsWith('#'))continue;
+    let parts=parseCSVLine(line);
+    // Caso: l'intera riga è avvolta in virgolette esterne → ri-parsare il contenuto interno
+    if(parts.length===1&&parts[0].includes(',')){
+      parts=parseCSVLine(parts[0]);
+    }
     if(parts.length<9)continue;
-    const [durata,mat_nome,...rest]=parts;
-    const docCogns=rest[0].split(';').map(s=>s.trim()).filter(Boolean);
-    const docNomi=rest[1].split(';').map(s=>s.trim()).filter(Boolean);
-    const classe=rest[2]||'',aula=rest[3]||'',giorno=rest[4]||'',oInizioRaw=rest[5]||'';
+    const[durata,mat_nome,cogn,nome,classe,aula,giorno,oInizioRaw,sede]=parts;
+    // Gestisce cognomi/nomi multipli separati da ';' oppure da virgola (nel caso co-docenti)
+    // Nel formato co-docente: cogn="Riva, MAGNANO" nome="Carlo, Eugenio" → split per virgola
+    let docCogns, docNomi;
+    if(cogn.includes(';')){
+      docCogns=cogn.split(';').map(s=>s.trim()).filter(Boolean);
+      docNomi=nome.split(';').map(s=>s.trim()).filter(Boolean);
+    } else if(cogn.includes(',')){
+      // co-docenti separati da virgola
+      docCogns=cogn.split(',').map(s=>s.trim()).filter(Boolean);
+      docNomi=nome.split(',').map(s=>s.trim()).filter(Boolean);
+    } else {
+      docCogns=[cogn.trim()].filter(Boolean);
+      docNomi=[nome.trim()].filter(Boolean);
+    }
+    if(docCogns.length===0)continue;
     const gi=normalizzaGiorno(giorno);
-    const giornoCanon=gi>=0&&gi<6?GIORNI[gi]:giorno.trim();
+    const giornoCanon=gi>=0&&gi<=5?GIORNI[gi]:giorno.trim();
     const oInizio=normalizzaOra(oInizioRaw);
-    rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns.length>0?docCogns:[rest[0]],doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio,sede:getSede(classe)});
+    rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns,doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio,sede:getSede(classe.trim())});
   }
   return rows;
 }
