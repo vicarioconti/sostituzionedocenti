@@ -1684,8 +1684,28 @@ function renderOrario(){
         }},'🔍 Testa parser'),
         el('button',{class:'btn btn-primary',onclick:async()=>{
           const txt=textarea.value||CSV_ESEMPIO;
-          try{const rows=parseCSV(txt);if(rows.length===0){addToast('⚠️ Nessuna riga valida',true);return;}
-          addToast('⏳ Salvataggio su Supabase...');const ok=await dbSalvaOrario(rows);if(ok){addToast('✅ Orario salvato: '+rows.length+' lezioni');STATE._orarioTab='visualizza';await caricaTutto();}}catch(e){addToast('❌ Errore CSV: '+e.message,true);}
+          try{
+            const rows=parseCSV(txt);
+            if(rows.length===0){addToast('⚠️ Nessuna riga valida',true);return;}
+            const byGiorno={};
+            rows.forEach(r=>{byGiorno[r.giorno]=(byGiorno[r.giorno]||0)+1;});
+            console.log('[IMPORT] Righe per giorno PRIMA del salvataggio:',byGiorno);
+            console.log('[IMPORT] Totale righe:',rows.length);
+            const venRows=rows.filter(r=>r.giorno==='Venerdì');
+            console.log('[IMPORT] Righe Venerdì:',venRows.length,'esempio:',venRows[0]);
+            addToast('⏳ Salvataggio su Supabase ('+rows.length+' righe)...');
+            const ok=await dbSalvaOrario(rows);
+            if(ok){
+              addToast('✅ Orario salvato: '+rows.length+' lezioni');
+              STATE._orarioTab='visualizza';
+              await caricaTutto();
+              const dopoVen=STATE.orario.filter(r=>r.giorno==='Venerdì');
+              console.log('[IMPORT] Righe Venerdì in STATE dopo caricaTutto:',dopoVen.length);
+              const byGiornoStato={};
+              STATE.orario.forEach(r=>{byGiornoStato[r.giorno]=(byGiornoStato[r.giorno]||0)+1;});
+              console.log('[IMPORT] STATE.orario per giorno dopo caricaTutto:',byGiornoStato);
+            }
+          }catch(e){addToast('❌ Errore CSV: '+e.message,true);console.error(e);}
         }},'📥 Importa e salva su cloud')
       ])
     ]);
