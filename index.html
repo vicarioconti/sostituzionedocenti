@@ -1668,6 +1668,15 @@ function renderOrario(){
       el('div',{class:'form-group',style:{marginTop:'1rem'}},[el('label',{},'Contenuto CSV'),textarea]),
       el('div',{style:{display:'flex',gap:'8px'}},[
         el('button',{class:'btn btn-outline btn-sm',onclick:()=>{textarea.value=CSV_ESEMPIO;}},'Carica esempio'),
+        el('button',{class:'btn btn-outline btn-sm',onclick:()=>{
+          const txt=textarea.value;
+          if(!txt.trim()){addToast('Incolla prima il CSV',true);return;}
+          const rows=parseCSV(txt);
+          const byGiorno={};
+          rows.forEach(r=>{byGiorno[r.giorno]=(byGiorno[r.giorno]||0)+1;});
+          const venRows=rows.filter(r=>r.giorno==='Venerdì');
+          alert('✅ Righe parsate totali: '+rows.length+'\n\nPer giorno:\n'+Object.entries(byGiorno).map(([g,n])=>g+': '+n).join('\n')+'\n\nEsempio riga Venerdì:\n'+(venRows.length>0?JSON.stringify(venRows[0]):'NESSUNA RIGA VENERDÌ TROVATA'));
+        }},'🔍 Testa parser'),
         el('button',{class:'btn btn-primary',onclick:async()=>{
           const txt=textarea.value||CSV_ESEMPIO;
           try{const rows=parseCSV(txt);if(rows.length===0){addToast('⚠️ Nessuna riga valida',true);return;}
