@@ -880,35 +880,104 @@ function assenzaRow(a,showDelete){
 }
 
 function renderAssenze(){
+  const oggi=todayStr();
   const assenzeGiorno=STATE.assenze.filter(a=>a.date===STATE.selDate).sort((a,b)=>a.docCogn.localeCompare(b.docCogn));
-  const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
-  const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
-  const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
-  const tutteRows=STATE.assenze.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const tbody=el('tbody',{});
-  if(tutteRows.length===0)tbody.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna assenza inserita')]));
-  tutteRows.forEach(a=>{
-    const tipo=a.tipo==='giorno';
-    const isUscita=a.tipo==='uscita';
-    const delBtn=el('button',{class:'btn btn-danger btn-sm'},'🗑');
-    delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Eliminata');await caricaTutto();}});
-    let docLabel, tipoEl, oraLabel;
-    if(isUscita){
-      docLabel=el('strong',{},'🚌 Classe '+a.classeUscita);
-      tipoEl=el('span',{class:'pill pill-teal'},'Uscita didattica');
-      const oreLabel=a.oreUscita&&a.oreUscita.length>0?a.oreUscita.join(', '):'Tutto il giorno';
-      oraLabel=oreLabel+(a.accompagnatori?' | '+a.accompagnatori:'');
+
+  // ── Stato filtri archivio ──
+  const mostraArchivio=STATE._assenzeArchivio||false;
+  const filtroDocArchivio=STATE._assenzeArchivioFiltroDoc||'';
+
+  // ── Card giorno corrente ──
+  const cardGiorno=el('div',{class:'card'},[
+    el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:'8px'}},[
+      el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),
+      el('div',{style:{display:'flex',gap:'8px'}},[
+        el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Assenza docente'),
+        el('button',{class:'btn btn-sm',style:{background:'#0f766e',color:'#fff'},onclick:()=>apriFinestraUscita()},'🚌 Uscita didattica')
+      ])
+    ]),
+    assenzeGiorno.length===0
+      ? el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza o uscita registrata per questo giorno')
+      : el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))
+  ]);
+
+  // ── Card archivio ──
+  let cardArchivio;
+  if(!mostraArchivio){
+    // Solo bottone per aprirlo
+    cardArchivio=el('div',{style:{textAlign:'center',padding:'0.5rem 0'}},[
+      el('button',{class:'btn btn-outline btn-sm',onclick:()=>{STATE._assenzeArchivio=true;render();}},'📂 Mostra archivio anno scolastico')
+    ]);
+  } else {
+    // Tutte le assenze con filtro docente
+    const docentiOrario=[...new Set(STATE.orario.flatMap(r=>r.doc_cogn))].sort();
+    const docentiUtenti=STATE.utenti.filter(u=>u.ruolo==='docente').map(u=>u.cognome);
+    const tuttiDocenti=[...new Set([...docentiOrario,...docentiUtenti])].sort();
+
+    let tutteRows=STATE.assenze.slice().sort((a,b)=>b.date.localeCompare(a.date)); // dal più recente
+    if(filtroDocArchivio) tutteRows=tutteRows.filter(a=>a.tipo==='uscita'?a.classeUscita===filtroDocArchivio:a.docCogn===filtroDocArchivio);
+
+    const selFiltro=el('select',{style:{border:'1px solid rgba(0,0,0,0.15)',borderRadius:'6px',padding:'4px 10px',fontSize:'0.85rem',fontFamily:'inherit',minWidth:'180px'}});
+    selFiltro.appendChild(el('option',{value:''},'Tutti i docenti'));
+    tuttiDocenti.forEach(d=>{const o=el('option',{value:d},d);if(d===filtroDocArchivio)o.selected=true;selFiltro.appendChild(o);});
+    selFiltro.addEventListener('change',e=>{STATE._assenzeArchivioFiltroDoc=e.target.value;render();});
+
+    const tbody=el('tbody',{});
+    if(tutteRows.length===0){
+      tbody.appendChild(el('tr',{},[el('td',{colspan:'5',style:{color:'#999',padding:'1rem',textAlign:'center'}},'Nessuna assenza trovata')]));
     } else {
-      docLabel=el('strong',{},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:''));
-      tipoEl=el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso orario');
-      oraLabel=tipo?'—':a.ora;
+      tutteRows.forEach(a=>{
+        const isUscita=a.tipo==='uscita';
+        const tipo=a.tipo==='giorno';
+        const delBtn=el('button',{class:'btn btn-danger btn-sm'},'🗑');
+        delBtn.addEventListener('click',async()=>{if(!confirm('Eliminare?'))return;const ok=await dbEliminaAssenza(a.id);if(ok){addToast('✅ Eliminata');await caricaTutto();}});
+        let docLabel,tipoEl,oraLabel;
+        if(isUscita){
+          docLabel=el('strong',{},'🚌 Classe '+a.classeUscita);
+          tipoEl=el('span',{class:'pill pill-teal'},'Uscita');
+          const oreLabel=a.oreUscita&&a.oreUscita.length>0?a.oreUscita.join(', '):'Tutto il giorno';
+          oraLabel=oreLabel+(a.notaUscita?' — '+a.notaUscita:'');
+        } else {
+          docLabel=el('strong',{},'Prof. '+a.docCogn+(a.docNome?' '+a.docNome:''));
+          tipoEl=el('span',{class:'pill '+(tipo?'pill-red':'pill-orange')},tipo?'Tutto giorno':'Permesso');
+          oraLabel=tipo?'—':a.ora;
+        }
+        tbody.appendChild(el('tr',{style:a.date<oggi?{color:'#888'}:{}},[
+          el('td',{},formatDate(a.date)),
+          el('td',{},[docLabel]),
+          el('td',{},[tipoEl]),
+          el('td',{},oraLabel),
+          el('td',{},[delBtn])
+        ]));
+      });
     }
-    tbody.appendChild(el('tr',{},[el('td',{},formatDate(a.date)),el('td',{},[docLabel]),el('td',{},[tipoEl]),el('td',{},oraLabel),el('td',{},[delBtn])]));
-  });
+
+    cardArchivio=el('div',{class:'card'},[
+      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:'8px'}},[
+        el('div',{class:'card-title',style:{marginBottom:0}},'📂 Archivio anno scolastico'),
+        el('div',{style:{display:'flex',gap:'8px',alignItems:'center'}},[
+          el('span',{style:{fontSize:'0.8rem',color:'#666'}},'Filtra per docente:'),
+          selFiltro,
+          el('button',{class:'btn btn-outline btn-sm',onclick:()=>{STATE._assenzeArchivio=false;STATE._assenzeArchivioFiltroDoc='';render();}},'✕ Chiudi')
+        ])
+      ]),
+      el('div',{class:'tbl-wrap',style:{maxHeight:'420px',overflowY:'auto'}},[
+        el('table',{},[
+          el('thead',{style:{position:'sticky',top:0,zIndex:5}},[
+            el('tr',{},[el('th',{},'Data'),el('th',{},'Docente / Classe'),el('th',{},'Tipo'),el('th',{},'Dettaglio'),el('th',{},'Azione')])
+          ]),
+          tbody
+        ])
+      ]),
+      el('div',{style:{marginTop:'0.5rem',fontSize:'0.78rem',color:'#888',textAlign:'right'}},tutteRows.length+' voci'+(filtroDocArchivio?' per "'+filtroDocArchivio+'"':''))
+    ]);
+  }
+
   return frag(
-    el('div',{class:'page-title'},'📋 Gestione Assenze'),renderDateNav(),
-    el('div',{class:'card'},[el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:'8px'}},[el('div',{class:'card-title',style:{marginBottom:0}},'Assenze del '+formatDate(STATE.selDate)),el('div',{style:{display:'flex',gap:'8px'}},[el('button',{class:'btn btn-primary btn-sm',onclick:()=>apriFinestraAssenza()},'+ Assenza docente'),el('button',{class:'btn btn-sm',style:{background:'#0f766e',color:'#fff'},onclick:()=>apriFinestraUscita()},'🚌 Uscita didattica')])]),assenzeGiorno.length===0?el('p',{style:{color:'#999',fontSize:'0.85rem',padding:'0.5rem 0'}},'Nessuna assenza o uscita registrata per questo giorno'):el('div',{},assenzeGiorno.map(a=>assenzaRow(a,true)))]),
-    el('div',{class:'card'},[el('div',{class:'card-title'},'📅 Tutte le assenze (anno scolastico)'),el('div',{class:'tbl-wrap'},[el('table',{},[el('thead',{},[el('tr',{},[el('th',{},'Data'),el('th',{},'Docente'),el('th',{},'Tipo'),el('th',{},'Ora'),el('th',{},'Azione')])]),tbody])])])
+    el('div',{class:'page-title'},'📋 Gestione Assenze'),
+    renderDateNav(),
+    cardGiorno,
+    cardArchivio
   );
 }
 
