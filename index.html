@@ -323,8 +323,13 @@ async function dbRimuoviSostituzione(assenzaId,lessonKey){const{error}=await sb.
 async function dbSalvaOrario(rows){
   await sb.from('orario').delete().neq('id',0);
   const payload=rows.map(r=>({durata:r.durata,mat_nome:r.mat_nome,doc_cogn:JSON.stringify(r.doc_cogn),doc_nome:JSON.stringify(r.doc_nome),classe:r.classe,aula:r.aula,giorno:r.giorno,o_inizio:r.oInizio,sede:r.sede}));
-  const{error}=await sb.from('orario').insert(payload);
-  if(error){addToast('❌ Errore salvataggio orario: '+error.message,true);return false;}
+  // Supabase ha limite ~1000 righe per insert — salviamo a batch da 500
+  const BATCH=500;
+  for(let i=0;i<payload.length;i+=BATCH){
+    const chunk=payload.slice(i,i+BATCH);
+    const{error}=await sb.from('orario').insert(chunk);
+    if(error){addToast('❌ Errore salvataggio orario (batch '+(Math.floor(i/BATCH)+1)+'): '+error.message,true);return false;}
+  }
   return true;
 }
 async function dbEliminaOrario(){const{error}=await sb.from('orario').delete().neq('id',0);return !error;}
