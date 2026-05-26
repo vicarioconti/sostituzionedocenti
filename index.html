@@ -1466,24 +1466,31 @@ function renderCardAssenza(a,isAdmin){
       }
       let notaCell;
       if(isAdmin){
-        // Input nota classe — salvato on blur, solo se c'è già un sostituto assegnato
+        const notaCorrente=sost?sost.notaClasse||'':'';
         const inpNota=el('input',{
           type:'text',
-          value:sost?sost.notaClasse||'':'',
-          placeholder:'es. esce alla 4a ora',
-          style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'6px',padding:'4px 8px',fontSize:'0.78rem',fontFamily:'inherit',background:sost?'#fff':'#f5f5f5',color:'#333'}
+          value:notaCorrente,
+          placeholder:sost?'es. esce alla 4a ora':'—',
+          style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'6px',padding:'4px 8px',fontSize:'0.78rem',fontFamily:'inherit',background:sost?'#fff':'#f5f7fa',color:'#333'}
         });
-        if(!sost)inpNota.disabled=true;
-        inpNota.addEventListener('blur',async()=>{
-          if(!sost){return;}
-          const nuovaNota=inpNota.value.trim();
-          const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
-          if(ok){
-            const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
-            if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
-            if(nuovaNota)addToast('📝 Nota salvata');
-          }
-        });
+        if(!sost){
+          inpNota.disabled=true;
+        } else {
+          // Blocca la propagazione dei tasti così render() non viene triggerato
+          inpNota.addEventListener('keydown',e=>e.stopPropagation());
+          inpNota.addEventListener('keyup',e=>e.stopPropagation());
+          inpNota.addEventListener('input',e=>e.stopPropagation());
+          inpNota.addEventListener('blur',async()=>{
+            const nuovaNota=inpNota.value.trim();
+            if(nuovaNota===(sost.notaClasse||''))return; // nessun cambiamento
+            const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
+            if(ok){
+              const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
+              if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
+              addToast('📝 Nota salvata');
+            }
+          });
+        }
         notaCell=el('td',{},[inpNota]);
       } else {
         notaCell=el('td',{style:{fontSize:'0.78rem',color:'#555',fontStyle:sost&&sost.notaClasse?'italic':'normal'}},sost&&sost.notaClasse?sost.notaClasse:'—');
