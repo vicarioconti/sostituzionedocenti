@@ -1467,31 +1467,45 @@ function renderCardAssenza(a,isAdmin){
       let notaCell;
       if(isAdmin){
         const notaCorrente=sost?sost.notaClasse||'':'';
-        const inpNota=el('input',{
-          type:'text',
-          value:notaCorrente,
-          placeholder:sost?'es. esce alla 4a ora':'—',
-          style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'6px',padding:'4px 8px',fontSize:'0.78rem',fontFamily:'inherit',background:sost?'#fff':'#f5f7fa',color:'#333'}
-        });
-        if(!sost){
-          inpNota.disabled=true;
-        } else {
-          // Blocca la propagazione dei tasti così render() non viene triggerato
-          inpNota.addEventListener('keydown',e=>e.stopPropagation());
-          inpNota.addEventListener('keyup',e=>e.stopPropagation());
-          inpNota.addEventListener('input',e=>e.stopPropagation());
-          inpNota.addEventListener('blur',async()=>{
-            const nuovaNota=inpNota.value.trim();
-            if(nuovaNota===(sost.notaClasse||''))return; // nessun cambiamento
-            const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
-            if(ok){
-              const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
-              if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
-              addToast('📝 Nota salvata');
+        const notaBtn=el('button',{
+          type:'button',
+          style:{background:'none',border:'1px dashed #ccd3e8',borderRadius:'6px',padding:'3px 8px',fontSize:'0.78rem',color:notaCorrente?'#1a3a6e':'#aaa',cursor:sost?'pointer':'default',fontFamily:'inherit',fontStyle:notaCorrente?'italic':'normal',textAlign:'left',width:'100%',minWidth:'120px'}
+        },notaCorrente||( sost?'+ aggiungi nota':'—'));
+        if(sost){
+          notaBtn.title='Clicca per modificare la nota';
+          notaBtn.addEventListener('click',e=>{
+            e.stopPropagation();
+            // Mini modale inline
+            const overlay=el('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',zIndex:9000,display:'flex',alignItems:'center',justifyContent:'center'}});
+            const box=el('div',{style:{background:'#fff',borderRadius:'12px',padding:'1.25rem',minWidth:'320px',maxWidth:'420px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}});
+            const inp=el('input',{type:'text',value:notaCorrente,placeholder:'es. esce alla 4a ora, entra alla 2a ora',style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'8px',padding:'8px 12px',fontSize:'0.9rem',fontFamily:'inherit',marginTop:'0.5rem',boxSizing:'border-box'}});
+            const salvaBtn=el('button',{class:'btn btn-primary btn-sm',style:{marginTop:'0.75rem'}},'💾 Salva');
+            const annullaBtn=el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'0.75rem'}},'Annulla');
+            box.appendChild(el('div',{style:{fontWeight:700,marginBottom:'0.25rem',fontSize:'0.9rem'}},'📝 Nota classe — '+l.oInizio+' '+l.classe));
+            box.appendChild(inp);
+            box.appendChild(el('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end'}},[annullaBtn,salvaBtn]));
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            setTimeout(()=>inp.focus(),50);
+            inp.addEventListener('keydown',async ev=>{if(ev.key==='Enter'){ev.preventDefault();await salva();}if(ev.key==='Escape'){overlay.remove();}});
+            annullaBtn.addEventListener('click',()=>overlay.remove());
+            async function salva(){
+              const nuovaNota=inp.value.trim();
+              overlay.remove();
+              const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
+              if(ok){
+                const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
+                if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
+                notaBtn.textContent=nuovaNota||'+ aggiungi nota';
+                notaBtn.style.color=nuovaNota?'#1a3a6e':'#aaa';
+                notaBtn.style.fontStyle=nuovaNota?'italic':'normal';
+                if(nuovaNota!==notaCorrente)addToast('📝 Nota salvata');
+              }
             }
+            salvaBtn.addEventListener('click',salva);
           });
         }
-        notaCell=el('td',{},[inpNota]);
+        notaCell=el('td',{},[notaBtn]);
       } else {
         notaCell=el('td',{style:{fontSize:'0.78rem',color:'#555',fontStyle:sost&&sost.notaClasse?'italic':'normal'}},sost&&sost.notaClasse?sost.notaClasse:'—');
       }
