@@ -1475,8 +1475,9 @@ function renderCardAssenza(a,isAdmin){
           notaBtn.title='Clicca per modificare la nota';
           notaBtn.addEventListener('click',e=>{
             e.stopPropagation();
+            console.log('[NOTA] click su bottone nota, sost=',!!sost);
             // Mini modale inline
-            const overlay=el('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',zIndex:9000,display:'flex',alignItems:'center',justifyContent:'center'}});
+            const overlay=el('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}});
             const box=el('div',{style:{background:'#fff',borderRadius:'12px',padding:'1.25rem',minWidth:'320px',maxWidth:'420px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}});
             const inp=el('input',{type:'text',value:notaCorrente,placeholder:'es. esce alla 4a ora, entra alla 2a ora',style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'8px',padding:'8px 12px',fontSize:'0.9rem',fontFamily:'inherit',marginTop:'0.5rem',boxSizing:'border-box'}});
             const salvaBtn=el('button',{class:'btn btn-primary btn-sm',style:{marginTop:'0.75rem'}},'💾 Salva');
@@ -1486,7 +1487,8 @@ function renderCardAssenza(a,isAdmin){
             box.appendChild(el('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end'}},[annullaBtn,salvaBtn]));
             overlay.appendChild(box);
             document.body.appendChild(overlay);
-            setTimeout(()=>inp.focus(),50);
+            console.log('[NOTA] overlay aggiunto al body, input=',inp);
+            inp.focus();
             inp.addEventListener('keydown',async ev=>{if(ev.key==='Enter'){ev.preventDefault();await salva();}if(ev.key==='Escape'){overlay.remove();}});
             annullaBtn.addEventListener('click',()=>overlay.remove());
             async function salva(){
