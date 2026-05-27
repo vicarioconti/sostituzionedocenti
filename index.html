@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema Sostituzioni Docenti — Ettore Conti</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#111;min-height:100vh}
@@ -136,14 +136,13 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 const CFG = {
   SUPABASE_URL: 'https://yuqcidujofmdjmlvwgyr.supabase.co',
   SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
-  EMAILJS_PUBLIC_KEY: 'TfFZD5K_tKQC6CGU4',
-  EMAILJS_SERVICE_ID: 'service_y4xpu5w',
-  EMAILJS_TEMPLATE_ID: 'template_7iqfynn',
+  // Email: configurato via Supabase Edge Function → Google Apps Script
+  // Nessuna chiave da inserire qui — tutto gestito lato server
 };
 
 const { createClient } = window.supabase;
 const sb = createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
-emailjs.init(CFG.EMAILJS_PUBLIC_KEY);
+
 
 // ================================================================
 // COSTANTI
@@ -380,41 +379,58 @@ async function dbLogEmail(dest,ogg,corp,stato){await sb.from('email_log').insert
 // ================================================================
 // EMAIL
 // ================================================================
+// ── Invio email via Supabase Edge Function → Google Apps Script ──
+async function inviaEmailViaEdgeFunction(params){
+  try{
+    const resp=await fetch(CFG.SUPABASE_URL+'/functions/v1/send-email',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':CFG.SUPABASE_ANON_KEY,
+        'Authorization':'Bearer '+CFG.SUPABASE_ANON_KEY
+      },
+      body:JSON.stringify(params)
+    });
+    const result=await resp.json();
+    if(!result.ok)throw new Error(result.error||'Errore Edge Function');
+    return true;
+  }catch(e){
+    console.warn('Edge Function email error:',e);
+    throw e;
+  }
+}
+
 async function inviaEmailAssenza(assenza){
   const utente=STATE.utenti.find(u=>u.cognome===assenza.docCogn);
   const email=utente?utente.email:`${assenza.docCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
   const oggetto=`Conferma assenza ${formatDate(assenza.date)}`;
   const corpo=assenza.tipo==='giorno'?'Assenza intera giornata':'Permesso orario — ora '+assenza.ora;
-  const params={to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la Sua assenza:\n📅 ${formatDate(assenza.date)}\n⏰ ${corpo}\n\nCordiali saluti,\nSegreteria`};
+  const messaggio=`Gentile Prof. ${assenza.docCogn},\n\nconfermiamo la Sua assenza:\n📅 ${formatDate(assenza.date)}\n⏰ ${corpo}\n\nCordiali saluti,\nSegreteria`;
   try{
-    const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,params);
+    await inviaEmailViaEdgeFunction({to_email:email,to_name:'Prof. '+assenza.docCogn,subject:oggetto,message:messaggio});
     await dbLogEmail(email,oggetto,corpo,'inviata');
     addToast('📧 Email inviata a '+email);
-    logEmailSuccess({tipo:'assenza',email,oggetto,resp});
   }catch(e){
-    console.warn('EmailJS:',e);
-    const errEntry=logEmailError({tipo:'assenza',email,oggetto,params,err:e});
-    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||e.message||String(e)));
-    addToast('⚠️ Email non inviata — vedi Log Errori per dettagli',true);
+    await dbLogEmail(email,oggetto,corpo,'errore: '+e.message);
+    addToast('⚠️ Email non inviata: '+e.message,true);
   }
 }
+
 async function inviaEmailSostituzione(assenza,lezione,sostitutoCogn){
   const utente=STATE.utenti.find(u=>u.cognome===sostitutoCogn);
   const email=utente?utente.email:`${sostitutoCogn.toLowerCase().replace(/\s/g,'.')}@scuola.edu`;
   const oggetto=`Sostituzione assegnata — ${formatDate(assenza.date)} ore ${lezione.oInizio}`;
   const corpo=`📅 ${formatDate(assenza.date)} | ⏰ ${lezione.oInizio} | 👤 Assente: ${assenza.docCogn} | 📚 ${lezione.mat_nome} | 🏫 ${lezione.classe} | 🚪 ${lezione.aula||'—'} | 📍 ${lezione.sede}`;
-  const params={to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria`};
+  const messaggio=`Gentile Prof. ${sostitutoCogn},\n\nLe viene assegnata la seguente sostituzione:\n\n${corpo}\n\nCordiali saluti,\nSegreteria`;
   try{
-    const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,params);
+    await inviaEmailViaEdgeFunction({to_email:email,to_name:'Prof. '+sostitutoCogn,subject:oggetto,message:messaggio});
     await dbLogEmail(email,oggetto,corpo,'inviata');
-    logEmailSuccess({tipo:'sostituzione',email,oggetto,resp});
   }catch(e){
-    console.warn('EmailJS:',e);
-    logEmailError({tipo:'sostituzione',email,oggetto,params,err:e});
-    await dbLogEmail(email,oggetto,corpo,'errore: '+(e.text||e.message||String(e)));
-    addToast('⚠️ Email sostituzione non inviata — vedi Log Errori',true);
+    await dbLogEmail(email,oggetto,corpo,'errore: '+e.message);
+    addToast('⚠️ Email sostituzione non inviata: '+e.message,true);
   }
 }
+
 
 // ================================================================
 // EMAIL ERROR LOG — dettagliato in-page
@@ -2004,73 +2020,55 @@ function renderEmail(){
     ]);
 
   } else {
-    // ── DIAGNOSTICA ──
-    const cfgRows=[
-      ['Service ID',CFG.EMAILJS_SERVICE_ID||'(vuoto)','service_XXXXXXX'],
-      ['Template ID',CFG.EMAILJS_TEMPLATE_ID||'(vuoto)','template_XXXXXXX'],
-      ['Public Key',CFG.EMAILJS_PUBLIC_KEY?CFG.EMAILJS_PUBLIC_KEY.slice(0,8)+'…':'(vuota)','AbCdEfGh…'],
+    // ── DIAGNOSTICA EDGE FUNCTION ──
+    const edgeUrl=CFG.SUPABASE_URL+'/functions/v1/send-email';
+
+    const checkList=[
+      ['Supabase URL',CFG.SUPABASE_URL?'✅ '+CFG.SUPABASE_URL:'❌ Vuoto — imposta CFG.SUPABASE_URL'],
+      ['Edge Function URL',edgeUrl],
+      ['Anon Key presente',CFG.SUPABASE_ANON_KEY?'✅ (configurata)':'❌ Vuota — imposta CFG.SUPABASE_ANON_KEY'],
+      ['Variabili server (Supabase)','GAS_WEBHOOK_URL e GAS_SECRET_KEY — impostare in Supabase Dashboard → Edge Functions → Secrets'],
     ];
-    const cfgTable=el('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'0.82rem'}},[
-      el('thead',{},[el('tr',{},[el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Parametro'),el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Valore configurato'),el('th',{style:{textAlign:'left',padding:'6px 8px',background:'#f0f4fb',color:'#1a3a6e'}},'Formato atteso')])]),
-      el('tbody',{},cfgRows.map(([k,v,fmt])=>el('tr',{},[
-        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',fontWeight:600}},k),
-        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',fontFamily:'monospace',color:v.startsWith('(')?'#c0392b':'#1a7a4a'}},v),
-        el('td',{style:{padding:'6px 8px',borderBottom:'1px solid #f0f0f0',color:'#888',fontFamily:'monospace',fontSize:'0.75rem'}},fmt),
-      ]))),
-    ]);
+    const checkTable=el('div',{style:{marginBottom:'1rem'}},checkList.map(([label,val])=>{
+      const ok=val.startsWith('✅');
+      const neutral=!val.startsWith('✅')&&!val.startsWith('❌');
+      return el('div',{style:{display:'flex',gap:'10px',alignItems:'flex-start',padding:'5px 0',borderBottom:'1px solid #f5f5f5',fontSize:'0.83rem'}},[
+        el('span',{style:{minWidth:'220px',color:'#444',fontWeight:500}},label),
+        el('span',{style:{color:ok?'#1a7a4a':neutral?'#555':'#c0392b',fontFamily:neutral?'monospace':'inherit',fontSize:neutral?'0.78rem':'inherit'}},val),
+      ]);
+    }));
 
     const testBtn=el('button',{class:'btn btn-primary btn-sm',style:{marginTop:'1rem'}},'🧪 Invia email di test a se stessi');
     const testLog=el('div',{style:{marginTop:'0.75rem'}});
     testBtn.addEventListener('click',async()=>{
-      testBtn.disabled=true;
-      testBtn.textContent='Invio in corso…';
+      testBtn.disabled=true;testBtn.textContent='Invio in corso…';
       const myEmail=STATE.currentUser?.profilo?.email||STATE.currentUser?.email||'';
-      if(!myEmail){testLog.innerHTML='<div class="err-msg">Email utente non trovata</div>';testBtn.disabled=false;testBtn.textContent='🧪 Invia email di test';return;}
+      if(!myEmail){testLog.innerHTML='<div class="err-msg">Email utente non trovata nel profilo</div>';testBtn.disabled=false;testBtn.textContent='🧪 Invia email di test a se stessi';return;}
       try{
-        const resp=await emailjs.send(CFG.EMAILJS_SERVICE_ID,CFG.EMAILJS_TEMPLATE_ID,{
+        await inviaEmailViaEdgeFunction({
           to_email:myEmail,to_name:'Admin Test',
-          subject:'[TEST] Verifica configurazione EmailJS',
-          message:'Questo è un messaggio di test inviato dal pannello diagnostica EmailJS.\n\nSe stai leggendo questa email, la configurazione è corretta! ✅\n\nTimestamp: '+new Date().toISOString(),
+          subject:'[TEST] Verifica configurazione email',
+          message:'Questo è un messaggio di test.\n\nSe lo stai leggendo, la configurazione Edge Function → Google Apps Script funziona correttamente! ✅\n\nTimestamp: '+new Date().toISOString(),
         });
         testLog.innerHTML='';
-        testLog.appendChild(el('div',{class:'notif notif-ok'},'✅ Test inviato con successo a '+myEmail+' (HTTP '+resp.status+': '+resp.text+')'));
-        logEmailSuccess({tipo:'test',email:myEmail,oggetto:'[TEST] Verifica configurazione EmailJS',resp});
+        testLog.appendChild(el('div',{class:'notif notif-ok'},'✅ Test inviato con successo a '+myEmail));
+        await dbLogEmail(myEmail,'[TEST]','Test diagnostica','inviata');
       }catch(e){
         testLog.innerHTML='';
-        const entry=logEmailError({tipo:'test',email:myEmail,oggetto:'[TEST]',params:{to_email:myEmail},err:e});
-        const errEl=el('div',{style:{background:'#fdecea',border:'1px solid #f5a0a0',borderRadius:'8px',padding:'12px'}},[
+        testLog.appendChild(el('div',{style:{background:'#fdecea',border:'1px solid #f5a0a0',borderRadius:'8px',padding:'12px'}},[
           el('div',{style:{fontWeight:700,color:'#c0392b',marginBottom:'6px'}},'❌ Invio fallito'),
-          e.status?el('div',{style:{fontSize:'0.82rem',marginBottom:'4px'}},'HTTP '+e.status+(e.text?': '+e.text:'')):'',
-          e.message?el('div',{style:{fontSize:'0.82rem',color:'#555',marginBottom:'4px'}},'Messaggio: '+e.message):'',
-          el('div',{style:{fontSize:'0.8rem',color:'#7a4a00',background:'#fff3cd',borderRadius:'6px',padding:'6px 10px',marginTop:'6px'}},'💡 Vai al tab "Errori EmailJS" per il dettaglio completo e la causa probabile.'),
-        ]);
-        testLog.appendChild(errEl);
+          el('div',{style:{fontSize:'0.82rem',color:'#555'}},e.message),
+          el('div',{style:{fontSize:'0.8rem',color:'#7a4a00',background:'#fff3cd',borderRadius:'6px',padding:'6px 10px',marginTop:'6px'}},'💡 Verifica che la Edge Function "send-email" sia deployata e che GAS_WEBHOOK_URL e GAS_SECRET_KEY siano impostati in Supabase → Edge Functions → Secrets.'),
+        ]));
+        await dbLogEmail(myEmail,'[TEST]','Test diagnostica','errore: '+e.message);
       }
-      testBtn.disabled=false;
-      testBtn.textContent='🧪 Invia email di test a se stessi';
+      testBtn.disabled=false;testBtn.textContent='🧪 Invia email di test a se stessi';
     });
 
-    const checkList=[
-      ['EmailJS SDK caricato',typeof emailjs!=='undefined'?'✅ OK':'❌ NON caricato — controlla la connessione e il CDN'],
-      ['Service ID presente',CFG.EMAILJS_SERVICE_ID?'✅ '+CFG.EMAILJS_SERVICE_ID:'❌ Vuoto — imposta CFG.EMAILJS_SERVICE_ID'],
-      ['Template ID presente',CFG.EMAILJS_TEMPLATE_ID?'✅ '+CFG.EMAILJS_TEMPLATE_ID:'❌ Vuoto — imposta CFG.EMAILJS_TEMPLATE_ID'],
-      ['Public Key presente',CFG.EMAILJS_PUBLIC_KEY?'✅ (nascosta per sicurezza)':'❌ Vuota — imposta CFG.EMAILJS_PUBLIC_KEY'],
-      ['EmailJS inizializzato','✅ emailjs.init() chiamato all\'avvio'],
-    ];
-    const checkTable=el('div',{style:{marginBottom:'1rem'}},checkList.map(([label,val])=>{
-      const ok=val.startsWith('✅');
-      return el('div',{style:{display:'flex',gap:'10px',alignItems:'flex-start',padding:'5px 0',borderBottom:'1px solid #f5f5f5',fontSize:'0.83rem'}},[
-        el('span',{style:{minWidth:'220px',color:'#444',fontWeight:500}},label),
-        el('span',{style:{color:ok?'#1a7a4a':'#c0392b'}},val),
-      ]);
-    }));
-
     content=el('div',{class:'card'},[
-      el('div',{class:'card-title'},'🔧 Diagnostica configurazione EmailJS'),
-      el('div',{class:'section-note',style:{marginBottom:'1rem'}},'Verifica che i valori in CFG corrispondano esattamente a quelli nel pannello EmailJS (emailjs.com/account).'),
+      el('div',{class:'card-title'},'🔧 Diagnostica configurazione email'),
+      el('div',{class:'notif notif-info',style:{marginBottom:'1rem',fontSize:'0.82rem'}},'Le email vengono inviate tramite <strong>Supabase Edge Function → Google Apps Script</strong>. Nessuna chiave API è esposta nel browser.'),
       checkTable,
-      el('div',{class:'card-title',style:{marginTop:'1rem'}},'📋 Valori CFG attuali'),
-      cfgTable,
       el('div',{class:'card-title',style:{marginTop:'1.5rem'}},'🧪 Test invio'),
       el('div',{style:{fontSize:'0.82rem',color:'#555',marginBottom:'0.5rem'}},'Invia una email di test al tuo indirizzo ('+( STATE.currentUser?.profilo?.email||STATE.currentUser?.email||'—')+') per verificare che tutto funzioni.'),
       testBtn,
