@@ -318,6 +318,21 @@ async function dbSalvaNotaClasse(assenzaId,lessonKey,nota){
   if(error){addToast('❌ Errore salvataggio nota: '+error.message,true);return false;}
   return true;
 }
+async function dbSalvaNotaClasseSenzaSostituto(assenzaId,lessonKey,nota,lezione){
+  // Upsert: se non c'è la riga sostituzione, la crea con solo la nota
+  const{data,error}=await sb.from('sostituzioni').upsert({
+    assenza_id:assenzaId,lesson_key:lessonKey,
+    sostituto_cogn:null,is_disposizione:false,
+    nota_classe:nota||null,assegnata_da:STATE.currentUser.id
+  },{onConflict:'assenza_id,lesson_key'}).select().single();
+  if(error){addToast('❌ Errore salvataggio nota: '+error.message,true);return false;}
+  // Aggiorna STATE
+  const idx=STATE.sostituzioni.findIndex(s=>s.assenzaId===assenzaId&&s.lessonKey===lessonKey);
+  const entry={...data,assenzaId,lessonKey,docCognSostituto:null,isDisposizione:false,notaClasse:nota||''};
+  if(idx>=0)STATE.sostituzioni[idx]=entry;
+  else STATE.sostituzioni.push(entry);
+  return true;
+}
 async function dbRimuoviSostituzione(assenzaId,lessonKey){const{error}=await sb.from('sostituzioni').delete().eq('assenza_id',assenzaId).eq('lesson_key',lessonKey);return !error;}
 async function dbSalvaOrario(rows){
   await sb.from('orario').delete().neq('id',0);
@@ -1485,44 +1500,80 @@ function renderCardAssenza(a,isAdmin){
         const notaCorrente=sost?sost.notaClasse||'':'';
         const notaBtn=el('button',{
           type:'button',
-          style:{background:'none',border:'1px dashed #ccd3e8',borderRadius:'6px',padding:'3px 8px',fontSize:'0.78rem',color:notaCorrente?'#1a3a6e':'#aaa',cursor:sost?'pointer':'default',fontFamily:'inherit',fontStyle:notaCorrente?'italic':'normal',textAlign:'left',width:'100%',minWidth:'120px'}
-        },notaCorrente||( sost?'+ aggiungi nota':'—'));
-        if(sost){
-          notaBtn.title='Clicca per modificare la nota';
-          notaBtn.addEventListener('click',e=>{
-            e.stopPropagation();
-            console.log('[NOTA] click su bottone nota, sost=',!!sost);
-            // Mini modale inline
-            const overlay=el('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}});
-            const box=el('div',{style:{background:'#fff',borderRadius:'12px',padding:'1.25rem',minWidth:'320px',maxWidth:'420px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}});
-            const inp=el('input',{type:'text',value:notaCorrente,placeholder:'es. esce alla 4a ora, entra alla 2a ora',style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'8px',padding:'8px 12px',fontSize:'0.9rem',fontFamily:'inherit',marginTop:'0.5rem',boxSizing:'border-box'}});
-            const salvaBtn=el('button',{class:'btn btn-primary btn-sm',style:{marginTop:'0.75rem'}},'💾 Salva');
-            const annullaBtn=el('button',{class:'btn btn-outline btn-sm',style:{marginTop:'0.75rem'}},'Annulla');
-            box.appendChild(el('div',{style:{fontWeight:700,marginBottom:'0.25rem',fontSize:'0.9rem'}},'📝 Nota classe — '+l.oInizio+' '+l.classe));
-            box.appendChild(inp);
-            box.appendChild(el('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end'}},[annullaBtn,salvaBtn]));
-            overlay.appendChild(box);
-            document.body.appendChild(overlay);
-            console.log('[NOTA] overlay aggiunto al body, input=',inp);
-            inp.focus();
-            inp.addEventListener('keydown',async ev=>{if(ev.key==='Enter'){ev.preventDefault();await salva();}if(ev.key==='Escape'){overlay.remove();}});
-            annullaBtn.addEventListener('click',()=>overlay.remove());
-            async function salva(){
-              const nuovaNota=inp.value.trim();
-              overlay.remove();
-              const ok=await dbSalvaNotaClasse(a.id,key,nuovaNota);
-              if(ok){
-                const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
-                if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
-                notaBtn.textContent=nuovaNota||'+ aggiungi nota';
-                notaBtn.style.color=nuovaNota?'#1a3a6e':'#aaa';
-                notaBtn.style.fontStyle=nuovaNota?'italic':'normal';
-                if(nuovaNota!==notaCorrente)addToast('📝 Nota salvata');
-              }
-            }
-            salvaBtn.addEventListener('click',salva);
+          style:{background:'none',border:'1px dashed #ccd3e8',borderRadius:'6px',padding:'3px 8px',fontSize:'0.78rem',color:notaCorrente?'#1a3a6e':'#aaa',cursor:'pointer',fontFamily:'inherit',fontStyle:notaCorrente?'italic':'normal',textAlign:'left',width:'100%',minWidth:'120px'}
+        },notaCorrente||'+ nota classe');
+        notaBtn.title='Clicca per aggiungere una nota';
+        notaBtn.addEventListener('click',e=>{
+          e.stopPropagation();
+          const overlay=el('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}});
+          const box=el('div',{style:{background:'#fff',borderRadius:'12px',padding:'1.25rem',minWidth:'340px',maxWidth:'440px',boxShadow:'0 8px 32px rgba(0,0,0,0.18)'}});
+
+          box.appendChild(el('div',{style:{fontWeight:700,marginBottom:'1rem',fontSize:'0.92rem',color:'#1a3a6e'}},'📝 Nota classe — '+l.oInizio+' '+l.classe));
+
+          // Opzioni predefinite
+          const opzioni=[
+            {val:'',label:'— Seleziona una voce rapida —'},
+            {val:'La classe entra alla 2ª ora',label:'⏰ La classe entra alla 2ª ora'},
+            {val:'La classe entra alla 3ª ora',label:'⏰ La classe entra alla 3ª ora'},
+            {val:'La classe esce alla fine della 4ª ora',label:'🏃 La classe esce alla fine della 4ª ora'},
+            {val:'La classe esce alla fine della 5ª ora',label:'🏃 La classe esce alla fine della 5ª ora'},
+            {val:'La classe esce alla fine della 6ª ora',label:'🏃 La classe esce alla fine della 6ª ora'},
+            {val:'Altra indicazione…',label:'✏️ Altra indicazione…'},
+          ];
+          const sel=el('select',{style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'8px',padding:'8px 10px',fontSize:'0.88rem',fontFamily:'inherit',marginBottom:'0.75rem',boxSizing:'border-box'}});
+          opzioni.forEach(o=>{const opt=el('option',{value:o.val},o.label);sel.appendChild(opt);});
+
+          // Campo testo libero (visibile solo se si sceglie "Altra indicazione")
+          const inp=el('input',{type:'text',value:'',placeholder:'Scrivi qui la nota...',style:{width:'100%',border:'1px solid #dde3f0',borderRadius:'8px',padding:'8px 12px',fontSize:'0.88rem',fontFamily:'inherit',boxSizing:'border-box',display:'none',marginBottom:'0.75rem'}});
+
+          // Precompila con valore esistente
+          if(notaCorrente){
+            const match=opzioni.find(o=>o.val===notaCorrente&&o.val!=='');
+            if(match){sel.value=notaCorrente;}
+            else{sel.value='Altra indicazione…';inp.style.display='block';inp.value=notaCorrente;}
+          }
+
+          sel.addEventListener('change',()=>{
+            if(sel.value==='Altra indicazione…'){inp.style.display='block';inp.focus();}
+            else{inp.style.display='none';inp.value='';}
           });
-        }
+
+          const azioni=el('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'0.5rem'}});
+          const annullaBtn=el('button',{class:'btn btn-outline btn-sm'},'Annulla');
+          const salvaBtn=el('button',{class:'btn btn-primary btn-sm'},'💾 Salva');
+          azioni.appendChild(annullaBtn);
+          azioni.appendChild(salvaBtn);
+
+          box.appendChild(sel);
+          box.appendChild(inp);
+          box.appendChild(azioni);
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+
+          annullaBtn.addEventListener('click',()=>overlay.remove());
+          overlay.addEventListener('click',ev=>{if(ev.target===overlay)overlay.remove();});
+
+          async function salva(){
+            const nuovaNota=sel.value==='Altra indicazione…'?inp.value.trim():sel.value.trim();
+            overlay.remove();
+            // Aggiorna STATE ottimisticamente
+            if(sost){
+              const idx2=STATE.sostituzioni.findIndex(s=>s.assenzaId===a.id&&s.lessonKey===key);
+              if(idx2>=0)STATE.sostituzioni[idx2].notaClasse=nuovaNota;
+              await dbSalvaNotaClasse(a.id,key,nuovaNota);
+            } else {
+              // Nessun sostituto ancora: salva solo nota in STATE locale e sul DB
+              // Usa upsert con solo nota (senza sostituto)
+              await dbSalvaNotaClasseSenzaSostituto(a.id,key,nuovaNota,l);
+            }
+            notaBtn.textContent=nuovaNota||'+ nota classe';
+            notaBtn.style.color=nuovaNota?'#1a3a6e':'#aaa';
+            notaBtn.style.fontStyle=nuovaNota?'italic':'normal';
+            if(nuovaNota)addToast('📝 Nota salvata');
+          }
+          salvaBtn.addEventListener('click',salva);
+          inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();salva();}if(ev.key==='Escape')overlay.remove();});
+        });
         notaCell=el('td',{},[notaBtn]);
       } else {
         notaCell=el('td',{style:{fontSize:'0.78rem',color:'#555',fontStyle:sost&&sost.notaClasse?'italic':'normal'}},sost&&sost.notaClasse?sost.notaClasse:'—');
