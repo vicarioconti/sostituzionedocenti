@@ -153,6 +153,7 @@ const sb = createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 // ================================================================
 // COSTANTI
 // ================================================================
+const SOSTITUTO_NESSUNO='__NESSUNO__'; // Placeholder per NOT NULL constraint su sostituto_cogn quando si salva solo la nota
 const CLASSI_BETTI=['1lcs','2lcs','3lcs','4lcs','5lcs','1lds','2lds','3lds','4lds','5lds','1le','2le','3le','4le','5le'];
 const GIORNI=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
 const GIORNO_MAP={'lunedi':0,'lunedì':0,'lun':0,'mon':0,'monday':0,'martedi':1,'martedì':1,'mar':1,'tue':1,'tuesday':1,'mercoledi':2,'mercoledì':2,'mer':2,'wed':2,'wednesday':2,'giovedi':3,'giovedì':3,'gio':3,'thu':3,'thursday':3,'venerdi':4,'venerdì':4,'ven':4,'fri':4,'friday':4,'sabato':5,'sab':5,'sat':5,'saturday':5,'domenica':6,'dom':6,'sun':6,'sunday':6};
@@ -291,7 +292,7 @@ async function caricaTutto(){
     console.log('[DEBUG] Giorni dopo canonicalizzazione:',dopoCanon);
   }
   if(as.data)STATE.assenze=as.data.map(a=>({...a,date:a.data,docCogn:a.doc_cogn,docNome:a.doc_nome,ora:a.ora||'',tipo:a.tipo,classeUscita:a.classe_uscita||'',oreUscita:a.ore_uscita||null,accompagnatori:a.accompagnatori||'',notaUscita:a.nota_uscita||''}));
-  if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:s.sostituto_cogn,isDisposizione:s.is_disposizione,notaClasse:s.nota_classe||''}));
+  if(so.data)STATE.sostituzioni=so.data.map(s=>({...s,assenzaId:s.assenza_id,lessonKey:s.lesson_key,docCognSostituto:(s.sostituto_cogn===SOSTITUTO_NESSUNO?null:s.sostituto_cogn),isDisposizione:s.is_disposizione,notaClasse:s.nota_classe||''}));
   if(ut.data)STATE.utenti=ut.data;
   if(em.data)STATE.emailLog=em.data.map(e=>e.oggetto+' → '+e.destinatario+' ['+new Date(e.inviata_il).toLocaleString('it-IT')+'] '+e.stato);
   render();
@@ -324,15 +325,30 @@ async function dbSalvaNotaClasse(assenzaId,lessonKey,nota){
   if(error){addToast('❌ Errore salvataggio nota: '+error.message,true);return false;}
   return true;
 }
+// Valore sentinella usato quando si salva solo la nota senza sostituto assegnato.
+// Evita la violazione del NOT NULL constraint su sostituto_cogn.
+
+
 async function dbSalvaNotaClasseSenzaSostituto(assenzaId,lessonKey,nota,lezione){
-  // Upsert: se non c'è la riga sostituzione, la crea con solo la nota
+  // Prova prima a fare solo UPDATE se la riga esiste già (sostituto già assegnato)
+  const esistente=STATE.sostituzioni.find(s=>s.assenzaId===assenzaId&&s.lessonKey===lessonKey);
+  if(esistente&&esistente.docCognSostituto&&esistente.docCognSostituto!==SOSTITUTO_NESSUNO){
+    // Riga esistente con sostituto reale: aggiorna solo la nota
+    const ok=await dbSalvaNotaClasse(assenzaId,lessonKey,nota);
+    if(ok){
+      const idx=STATE.sostituzioni.findIndex(s=>s.assenzaId===assenzaId&&s.lessonKey===lessonKey);
+      if(idx>=0)STATE.sostituzioni[idx].notaClasse=nota||'';
+    }
+    return ok;
+  }
+  // Nessun sostituto: upsert con placeholder per rispettare NOT NULL
   const{data,error}=await sb.from('sostituzioni').upsert({
     assenza_id:assenzaId,lesson_key:lessonKey,
-    sostituto_cogn:null,is_disposizione:false,
+    sostituto_cogn:SOSTITUTO_NESSUNO,is_disposizione:false,
     nota_classe:nota||null,assegnata_da:STATE.currentUser.id
   },{onConflict:'assenza_id,lesson_key'}).select().single();
   if(error){addToast('❌ Errore salvataggio nota: '+error.message,true);return false;}
-  // Aggiorna STATE
+  // Aggiorna STATE — docCognSostituto rimane null in memoria per il rendering
   const idx=STATE.sostituzioni.findIndex(s=>s.assenzaId===assenzaId&&s.lessonKey===lessonKey);
   const entry={...data,assenzaId,lessonKey,docCognSostituto:null,isDisposizione:false,notaClasse:nota||''};
   if(idx>=0)STATE.sostituzioni[idx]=entry;
