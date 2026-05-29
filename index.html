@@ -1431,6 +1431,9 @@ function renderSostituzioni(){
 function apriNotaModal(a,l,key,sost,notaBtn){
   // Rimuovi eventuali overlay esistenti
   document.querySelectorAll('.nota-overlay').forEach(o=>o.remove());
+  // Leggi sempre la nota corrente fresca dallo STATE (evita valori stale del closure)
+  const sostFresco=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key)||sost||null;
+  sost=sostFresco;
   const notaCorrente=sost?sost.notaClasse||'':'';
   const opzioni=[
     {val:'',label:'— Seleziona una voce rapida —'},
@@ -1594,8 +1597,11 @@ function renderCardAssenza(a,isAdmin){
         notaBtn.addEventListener('click',e=>{
           e.stopPropagation();
           e.preventDefault();
-          // setTimeout 0: aspetta che eventuali render() pendenti finiscano, poi crea la modale
-          setTimeout(()=>apriNotaModal(a,l,key,sost,notaBtn),0);
+          // Leggi sost fresco dallo STATE (evita closure stale quando non c'è ancora sostituto)
+          setTimeout(()=>{
+            const sostFresco=STATE.sostituzioni.find(s=>s.assenzaId===a.id&&s.lessonKey===key)||null;
+            apriNotaModal(a,l,key,sostFresco,notaBtn);
+          },0);
         });
         notaCell=el('td',{},[notaBtn]);
       } else {
