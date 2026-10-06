@@ -816,6 +816,19 @@ function renderLogin(){
   inpE.addEventListener('keydown',e=>e.key==='Enter'&&login());
   inpP.addEventListener('keydown',e=>e.key==='Enter'&&login());
   card.appendChild(el('button',{class:'btn btn-primary btn-full',onclick:login},'Accedi'));
+  card.appendChild(el('button',{
+  type:'button',
+  class:'btn btn-sm',
+  style:{width:'100%',justifyContent:'center',marginTop:'0.5rem',background:'none',color:'#1a56a0'},
+  onclick:async()=>{
+    const e=inpE.value.trim();
+    if(!e){errDiv.textContent='Scrivi prima la tua email, poi clicca "Password dimenticata?"';errDiv.className='err-msg';return;}
+    const{error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:window.location.origin+window.location.pathname});
+    if(error){errDiv.textContent='Errore: '+error.message;errDiv.className='err-msg';return;}
+    errDiv.textContent="Se l'email è registrata, riceverai un link per reimpostare la password.";
+    errDiv.className='notif notif-ok';
+  }
+},'Password dimenticata?'));
   card.appendChild(el('div',{class:'info-box'},'☁️ Accesso da qualsiasi postazione · Creato da Giorgio Costantino'));
   return el('div',{class:'login-wrap'},[card]);
 }
