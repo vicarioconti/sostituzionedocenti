@@ -141,7 +141,7 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:0.85em;font-
 // ================================================================
 const CFG = {
   SUPABASE_URL: 'https://yuqcidujofmdjmlvwgyr.supabase.co',
-  SUPABASE_KEY: SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1cWNpZHVqb2ZtZGptbHZ3Z3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MDE5MTUsImV4cCI6MjA5NDM3NzkxNX0.T1FU9s8hggTIYaRJwf58Vl5JuRLQp8UxwOO4U8cKQzk',
   get SUPABASE_ANON_KEY(){ return this.SUPABASE_KEY; },   // ← NUOVA RIGA
 };
 
@@ -2271,8 +2271,7 @@ function renderModal(){
 // ================================================================
 // AVVIO
 // ================================================================
-initAuth();
-  sb.auth.onAuthStateChange((event)=>{
+sb.auth.onAuthStateChange((event)=>{
   if(event==='PASSWORD_RECOVERY'){ STATE._primoAccesso=true; }
 });
 initAuth();
