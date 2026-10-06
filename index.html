@@ -209,52 +209,69 @@ function normalizzaOra(s){
   return t;
 }
 
-function parseCSVLine(line){
-  // Parser CSV corretto che gestisce campi quotati con virgole interne
+function parseDurata(s){
+  const t=String(s||'').trim().toLowerCase();
+  const m=t.match(/^(\d+)\s*h\s*(\d{0,2})$/);
+  if(m)return parseInt(m[1])*60+(parseInt(m[2])||0);
+  return parseInt(t)||60;
+}
+
+function parseCSVLine(line,sep){
   const parts=[];let buf='',inQ=false;
   for(let i=0;i<line.length;i++){
     const c=line[i];
     if(c==='"'){
-      if(inQ&&line[i+1]==='"'){buf+='"';i++;}  // escaped quote ""
+      if(inQ&&line[i+1]==='"'){buf+='"';i++;}
       else inQ=!inQ;
-    } else if(c===','&&!inQ){parts.push(buf.trim());buf='';}
+    } else if(c===sep&&!inQ){parts.push(buf.trim());buf='';}
     else buf+=c;
   }
   parts.push(buf.trim());
   return parts;
 }
 
+const normCol=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+
 function parseCSV(text){
   const rows=[];
-  for(let line of text.trim().split('\n')){
-    line=line.trim().replace(/\r$/,'');
-    if(!line||line.startsWith('#'))continue;
-    let parts=parseCSVLine(line);
-    // Caso: l'intera riga è avvolta in virgolette esterne → ri-parsare il contenuto interno
-    if(parts.length===1&&parts[0].includes(',')){
-      parts=parseCSVLine(parts[0]);
-    }
-    if(parts.length<9)continue;
-    const[durata,mat_nome,cogn,nome,classe,aula,giorno,oInizioRaw,sede]=parts;
-    // Gestisce cognomi/nomi multipli separati da ';' oppure da virgola (nel caso co-docenti)
-    // Nel formato co-docente: cogn="Riva, MAGNANO" nome="Carlo, Eugenio" → split per virgola
-    let docCogns, docNomi;
-    if(cogn.includes(';')){
-      docCogns=cogn.split(';').map(s=>s.trim()).filter(Boolean);
-      docNomi=nome.split(';').map(s=>s.trim()).filter(Boolean);
-    } else if(cogn.includes(',')){
-      // co-docenti separati da virgola
-      docCogns=cogn.split(',').map(s=>s.trim()).filter(Boolean);
-      docNomi=nome.split(',').map(s=>s.trim()).filter(Boolean);
-    } else {
-      docCogns=[cogn.trim()].filter(Boolean);
-      docNomi=[nome.trim()].filter(Boolean);
-    }
+  const righe=text.replace(/^\uFEFF/,'').trim().split('\n')
+    .map(l=>l.trim().replace(/\r$/,'')).filter(l=>l&&!l.startsWith('#'));
+  if(righe.length===0)return rows;
+  // Riconosce da solo il separatore: ; oppure ,
+  const sep=(righe[0].split(';').length>righe[0].split(',').length)?';':',';
+  const split=s=>s.split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+
+  // Posizioni di default (formato semplice a 9 colonne, senza intestazione)
+  let idx={durata:0,mat:1,cogn:2,nome:3,classe:4,aula:5,giorno:6,ora:7};
+  let start=0;
+
+  // Se c'è l'intestazione, le colonne vengono cercate per nome
+  const h=parseCSVLine(righe[0],sep).map(normCol);
+  if(h.includes('doccogn')&&h.includes('giorno')){
+    const f=n=>h.indexOf(n);
+    idx={durata:f('durata'),mat:f('matnome'),cogn:f('doccogn'),nome:f('docnome'),
+         classe:f('classe'),aula:f('aula'),giorno:f('giorno'),ora:f('oinizio')};
+    start=1;
+  }
+
+  for(let k=start;k<righe.length;k++){
+    const p=parseCSVLine(righe[k],sep);
+    const g=i=>(i>=0&&i<p.length?p[i]:'');
+    const gi=normalizzaGiorno(g(idx.giorno));
+    if(gi===-1)continue;
+    const docCogns=split(g(idx.cogn));
     if(docCogns.length===0)continue;
-    const gi=normalizzaGiorno(giorno);
-    const giornoCanon=gi>=0&&gi<=5?GIORNI[gi]:giorno.trim();
-    const oInizio=normalizzaOra(oInizioRaw);
-    rows.push({durata:parseInt(durata)||60,mat_nome:mat_nome.trim(),doc_cogn:docCogns,doc_nome:docNomi,classe:classe.trim(),aula:aula.trim(),giorno:giornoCanon,oInizio,sede:getSede(classe.trim())});
+    rows.push({
+      durata:parseDurata(g(idx.durata)),
+      mat_nome:g(idx.mat).trim(),
+      doc_cogn:docCogns,
+      doc_nome:split(g(idx.nome)),
+      classe:g(idx.classe).trim(),
+      aula:g(idx.aula).trim(),
+      giorno:GIORNI[gi],
+      oInizio:normalizzaOra(g(idx.ora)),
+      sede:getSede(g(idx.classe))
+    });
   }
   return rows;
 }
