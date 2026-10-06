@@ -376,6 +376,15 @@ async function dbSalvaOrario(rows){
   }
   return true;
 }
+  async function dbEliminaOrario(){
+  const{data,error}=await sb.from('orario').delete().neq('id',0).select('id');
+  if(error){addToast('❌ Errore eliminazione orario: '+error.message,true);return false;}
+  if(!data||data.length===0){
+    addToast('⚠️ Nessuna riga eliminata: probabile blocco dei permessi (RLS) su Supabase',true);
+    return false;
+  }
+  return true;
+}
 async function caricaOrario(){
   // Supabase limita a 1000 righe per query — carichiamo a pagine da 1000
   let all=[];let from=0;const PAGE=1000;
