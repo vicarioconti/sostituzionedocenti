@@ -2272,6 +2272,10 @@ function renderModal(){
 // AVVIO
 // ================================================================
 initAuth();
+  sb.auth.onAuthStateChange((event)=>{
+  if(event==='PASSWORD_RECOVERY'){ STATE._primoAccesso=true; }
+});
+initAuth();
 </script>
 </body>
 </html>
